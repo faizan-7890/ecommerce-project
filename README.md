@@ -1,23 +1,30 @@
-# ⚡ VELOCE - Full-Stack Premium E-Commerce Application
+# ⚡ VELOCE - Premium E-Commerce Application
 
-Veloce is a full-stack, state-of-the-art E-Commerce application utilizing a **Next.js 16 (App Router) + Tailwind CSS** frontend and an **Express + PostgreSQL (Prisma ORM)** backend.
+Veloce is a production-ready, full-stack E-Commerce platform built with a modern **Next.js 16 (App Router) + Tailwind CSS** frontend and an **Express + PostgreSQL (Prisma ORM)** backend. It incorporates secure session rotations, stock protection, product variants, coupon calculators, verified buyer reviews, mock payments, and dynamic admin analytics.
 
 ---
 
-## ✨ Features Implemented
+## ✨ Core Features & Enhancements
 
-### 🛍️ Client Experience
-* **Dynamic Product Catalog**: Features filtering by categories, search keywords, price ranges, and sorting by relevance or pricing.
-* **Shopping Cart System**: Live quantity updates, deletion, subtotal calculations, and stock checks.
-* **Transaction Checkout**: Mock payments (COD / Credit Card) that reduce product inventory and log order records.
-* **Order History Tracker**: Dynamic order listing, status tracking (pending, processing, delivered, cancelled), and order cancellations.
-* **User Authentication**: Secure JWT sessions with password hashing.
+### 🛡️ Security & Authentication
+* **Session Rotations**: Utilizes short-lived (15 min) Access Tokens in memory and secure, HttpOnly, SameSite `strict` cookies for revocable 7-day Refresh Tokens stored in PostgreSQL.
+* **Brute-Force Protection**: Endpoint rate-limiters protect authentication attempts.
+* **Simulated Recoveries**: Simulated email verifications (`POST /api/auth/verify-email`) and password resets (`POST /api/auth/forgot-password` and `/api/auth/reset-password`).
+* **Session Revocation**: Logging out revokes active session records in the database.
 
-### 👑 Administrator Dashboard
-* **Sales Analytics**: Sales metrics cards for total revenue, total orders, product catalog depth, and customer counts.
-* **Catalog Manager**: Full CRUD forms to add, edit, or remove products and associate them with specific categories.
-* **Category Registry**: Registration panels to add new departments and product scopes.
-* **Transaction Overrides**: Select fields to change order status across the entire database (e.g. from `pending` to `shipped` or `cancelled`).
+### 🛍️ Customer Experience
+* **Product Variants**: Dynamic size, color, and price options mapped to distinct SKUs and stock quantities.
+* **Address Book**: Add, edit, delete, and set default locations for multiple shipping/billing addresses (`/api/users/addresses`).
+* **Promo Code Engine**: Real-time validation checking min-order pricing, expirations, and usage limits (e.g., `WELCOME10` or `SAVE20`).
+* **Verified Customer Reviews**: Customers can submit rating stars (1-5) and comments only if they have a `delivered` order containing that item.
+* **Wishlist Registry**: Save items, check stock status, and transfer items directly to the shopping cart.
+* **Dynamic Checkout**: Real-time sales tax calculations (8%), free shipping thresholds (orders >= $100), and Stripe/PayPal simulated credit card captures.
+
+### 👑 Administrator Control Panel
+* **Filtered Analytics**: Sales metrics reports filterable by range types (Today, Last 7 Days, Last 30 Days, This Year, or Custom Ranges).
+* **Low-Stock Monitors**: Live alerts highlighting variant stocks falling below set thresholds.
+* **Best Sellers & Audit Logs**: Grouped lists tracking best selling revenue drivers and audit trails logging admin actions.
+* **Coupon & Variant Dialogs**: Panels to manage promotional coupons and configure size/color overrides on catalog items.
 
 ---
 
@@ -27,21 +34,21 @@ Veloce is a full-stack, state-of-the-art E-Commerce application utilizing a **Ne
 ecommerce-project/
 ├── backend/                  # Node.js + Express REST API
 │   ├── prisma/
-│   │   ├── schema.prisma     # PostgreSQL schemas (Prisma 7 structure)
-│   │   └── seed.js           # Database seeder (Roles & sample values)
+│   │   ├── schema.prisma     # PostgreSQL relational database models
+│   │   └── seed.js           # Database seeder (Users, Categories, Variants, Coupons)
 │   ├── src/
-│   │   ├── config/db.js      # Prisma Client pool configurations
-│   │   ├── middleware/auth.js# JWT & Admin route guards
-│   │   └── routes/           # REST Endpoint routers
-│   ├── .env                  # Environment configurations
-│   └── server.js             # Express start script
+│   │   ├── config/db.js      # Prisma client initialization
+│   │   ├── middleware/auth.js# Auth validators & Admin guards
+│   │   └── routes/           # REST Router endpoints (Auth, Cart, Orders, Reviews...)
+│   ├── .env                  # Environment files
+│   └── server.js             # Server startup script
 │
-└── frontend/                 # Next.js Frontend Web Application
+└── frontend/                 # Next.js Web App Client
     ├── src/
-    │   ├── app/              # Routing pages and layouts (App Router)
-    │   ├── components/       # Shared UI blocks (Header, Footer, ProductCard)
-    │   ├── context/          # State managers (AuthProvider, CartProvider)
-    │   └── lib/api.ts        # Axios-like token injection API client
+    │   ├── app/              # Next.js App Router (Marketplace, Profile, Wishlist, Checkout)
+    │   ├── components/       # Premium UI components (Header, Footer, ProductCard)
+    │   ├── context/          # Client state providers (Auth, Cart)
+    │   └── lib/api.ts        # Axios-style credentials interceptor client
 ```
 
 ---
@@ -50,69 +57,126 @@ ecommerce-project/
 
 ### Prerequisites
 * [Node.js](https://nodejs.org/) (v18.0.0 or higher)
-* [PostgreSQL](https://www.postgresql.org/) database server running locally on port `5432`
+* [PostgreSQL](https://www.postgresql.org/) database running on port `5432`
 
 ---
 
-### Step 1: Database Synchronization & Seeding
-
-Go to the backend directory, push the schemas to PostgreSQL, and seed the default roles:
+### Step 1: Database Migration & Seeding
+Go to the backend directory, push schema definitions to PostgreSQL, and seed sample values:
 ```bash
 cd backend
 
-# Sync Prisma Schema with your local database
+# Apply schema migrations to database
 npx prisma db push
 
-# Run the seeding script to populate CUSTOMER and ADMIN roles
+# Re-generate Prisma Client typing declarations
+npx prisma generate
+
+# Seed sample categories, products, variants, users, and coupons
 node prisma/seed.js
 ```
 
+#### Seed Login Credentials
+* **Customer Account**: `john@example.com` / Password: `password123`
+* **Admin Account**: `admin@veloce.com` / Password: `admin123`
+* **Seeded Promo Coupons**: `WELCOME10` (10% off percentage), `SAVE20` ($20.00 flat discount)
+
 ---
 
-### Step 2: Start the Backend Server
-
-Start the Node development server:
+### Step 2: Start backend server
 ```bash
 cd backend
 npm run dev
 ```
-* **API base URL**: `http://localhost:5000`
+* **API URL**: `http://localhost:5000`
 
 ---
 
-### Step 3: Start the Frontend Client
-
-In a separate terminal tab, run the Next.js development server:
+### Step 3: Start frontend client
 ```bash
 cd frontend
 npm run dev
 ```
-* **Web app URL**: `http://localhost:3000`
+* **Client URL**: `http://localhost:3000`
 
 ---
 
 ## 📡 REST API Specifications
 
+### System & Authentication
 | Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| **POST** | `/api/auth/register` | Public | Register a new customer and initialize a Cart |
-| **POST** | `/api/auth/login` | Public | Authenticate user and return JWT session |
-| **GET** | `/api/users/profile` | Protected | Fetch the logged-in user profile details |
-| **PUT** | `/api/users/profile` | Protected | Update profile details (Name, Email, Password) |
-| **GET** | `/api/products` | Public | List products (Supports search, filter, sorting) |
-| **GET** | `/api/products/:id` | Public | Retrieve individual product specifications |
-| **POST** | `/api/products` | Admin | Register a new product with images |
-| **PUT** | `/api/products/:id` | Admin | Modify product attributes or stock |
-| **DELETE**| `/api/products/:id` | Admin | Delete a product from the database |
-| **GET** | `/api/categories` | Public | Retrieve all categories with product counts |
-| **POST** | `/api/categories` | Admin | Create a new product category |
-| **GET** | `/api/cart` | Protected | Fetch current user's shopping cart details |
-| **POST** | `/api/cart/items` | Protected | Add a product item to the shopping cart |
-| **PUT** | `/api/cart/items/:id` | Protected | Adjust the quantity of an item in the cart |
-| **DELETE**| `/api/cart/items/:id` | Protected | Remove an item from the cart |
-| **POST** | `/api/orders` | Protected | Complete checkout, record order, and deduct stock |
-| **GET** | `/api/orders` | Protected | Fetch order history logs for the user |
-| **PUT** | `/api/orders/:id/cancel`| Protected | Cancel order (restores stock if pending) |
-| **GET** | `/api/admin/stats` | Admin | Fetch system analytics (Revenue, orders, counts) |
-| **GET** | `/api/admin/orders` | Admin | List all orders across all user accounts |
-| **PUT** | `/api/admin/orders/:id/status`| Admin | Manually update order status (restores stock if cancelled) |
+| **GET** | `/api/health` | Public | Verify server health status and timestamp |
+| **POST** | `/api/auth/register` | Public | Register customer, initialize Cart, set HttpOnly Refresh cookie |
+| **POST** | `/api/auth/login` | Public | Authenticate user, set HttpOnly cookie, return short-lived access JWT |
+| **POST** | `/api/auth/refresh` | Public | Verify HttpOnly cookie, issue new access token |
+| **POST** | `/api/auth/logout` | Public | Revoke session in DB, clear cookie headers |
+| **POST** | `/api/auth/forgot-password`| Public | Request simulated reset token link |
+| **POST** | `/api/auth/reset-password` | Public | Apply password change using verification token |
+| **POST** | `/api/auth/verify-email` | Private | Verify customer email address status |
+
+### User Profile & Address Book
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| **GET** | `/api/users/profile` | Private | Fetch details of the authenticated profile |
+| **PUT** | `/api/users/profile` | Private | Update user details (Name, Email) |
+| **PUT** | `/api/users/password` | Private | Change user password, revoke old sessions |
+| **GET** | `/api/users/addresses` | Private | Fetch saved shipping/billing addresses |
+| **POST** | `/api/users/addresses` | Private | Create shipping/billing address, enforces default checks |
+| **PUT** | `/api/users/addresses/:id` | Private | Modify address card parameters |
+| **DELETE**| `/api/users/addresses/:id` | Private | Delete address card (re-allocates defaults if removed) |
+
+### Products, Variants & Categories
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| **GET** | `/api/products` | Public | Search/filter catalog products with options |
+| **GET** | `/api/products/:id` | Public | Retrieve product details (slug or ID) and variants |
+| **POST** | `/api/products` | Admin | Register new product with variants and images |
+| **PUT** | `/api/products/:id` | Admin | Update basic product details |
+| **DELETE**| `/api/products/:id` | Admin | Disable/Soft-delete product |
+| **POST** | `/api/products/:id/variants`| Admin | Create product variant (unique SKU, size, color, stock) |
+| **PUT** | `/api/products/:id/variants/:vId`| Admin | Adjust variant details, triggers inventory logs |
+| **DELETE**| `/api/products/:id/variants/:vId`| Admin | Remove variant option |
+| **POST** | `/api/products/:id/images`| Admin | Add image to gallery |
+| **DELETE**| `/api/products/:id/images/:imgId`| Admin | Delete image |
+| **GET** | `/api/categories` | Public | Get all categories |
+| **POST** | `/api/categories` | Admin | Create category |
+
+### Cart, Wishlist & Reviews
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| **GET** | `/api/cart` | Private | Fetch current user cart items and subtotals |
+| **POST** | `/api/cart/items` | Private | Add item to cart (supports and validates variantId, stock checks) |
+| **PUT** | `/api/cart/items/:id` | Private | Adjust cart item quantity |
+| **DELETE**| `/api/cart/items/:id` | Private | Delete cart item |
+| **GET** | `/api/wishlist` | Private | List wishlist items and product status |
+| **POST** | `/api/wishlist/:pId` | Private | Add product to wishlist |
+| **DELETE**| `/api/wishlist/:pId` | Private | Remove product from wishlist |
+| **GET** | `/api/reviews/:pId` | Public | Load reviews for a product |
+| **POST** | `/api/reviews` | Private | Write review (Verifies user ordered and received product) |
+| **PUT** | `/api/reviews/:id` | Private | Update review comment/stars |
+| **DELETE**| `/api/reviews/:id` | Private | Remove review (Admin or owner only) |
+
+### Coupons, Payments & Checkout
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| **POST** | `/api/coupons/validate` | Private | Validate coupon against cart subtotal, limits, dates |
+| **GET** | `/api/coupons/admin` | Admin | List all active coupons |
+| **POST** | `/api/coupons/admin` | Admin | Create a coupon |
+| **PUT** | `/api/coupons/admin/:id`| Admin | Edit coupon parameters |
+| **DELETE**| `/api/coupons/admin/:id`| Admin | Delete coupon |
+| **POST** | `/api/orders` | Private | Checkout (Deducts variant stock in Postgres transaction, snaps addresses) |
+| **GET** | `/api/orders` | Private | Fetch user order logs |
+| **GET** | `/api/orders/:id` | Private | View specific order specifications |
+| **PUT** | `/api/orders/:id/cancel`| Private | Cancel pending order (restores variant stock, logs inventory change) |
+| **POST** | `/api/payments/create` | Private | Initialize order payment event |
+| **POST** | `/api/payments/verify` | Private | Verify card payments authorization, completes order confirmation |
+| **POST** | `/api/payments/webhook`| Public | Simulated gateway webhook (ignores duplicates, rollbacks stock on failures) |
+| **POST** | `/api/payments/:id/refund`| Admin | Process refund of payment transaction, restores item stock |
+
+### Analytics & Reports
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| **GET** | `/api/admin/orders` | Admin | List all orders across all accounts |
+| **PUT** | `/api/admin/orders/:id/status`| Admin | Modify order status (triggers stock restoration on cancellation) |
+| **GET** | `/api/admin/stats` | Admin | Dashboard reports (Revenue, best-sellers, low-stock variants, audit trails) |
