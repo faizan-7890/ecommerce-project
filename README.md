@@ -98,7 +98,7 @@ npm run test
 Start backend REST server:
 ```bash
 cd backend
-npm run dev
+
 ```
 * **API URL**: `http://localhost:5000`
 
