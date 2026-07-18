@@ -162,6 +162,16 @@ export default function CheckoutPage() {
     }
   };
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -186,16 +196,60 @@ export default function CheckoutPage() {
         'x-idempotency-key': idempotencyKey,
       });
 
-      // 2. Redirect to Stripe Checkout Session
+      // 2. Open Razorpay Standard Checkout if Credit Card is selected
       if (paymentMethod === 'card') {
-        const paymentRes = await api.post('/payments/create', {
+        const rzpOrderData = await api.post('/payments/create-order', {
           orderId: order.id,
         });
 
-        if (paymentRes.checkoutUrl) {
-          window.location.href = paymentRes.checkoutUrl;
+        const isScriptLoaded = await loadRazorpayScript();
+        if (!isScriptLoaded) {
+          setError('Failed to load Razorpay Checkout SDK. Please check your network connection.');
+          setLoading(false);
           return;
         }
+
+        const options = {
+          key: rzpOrderData.keyId,
+          amount: rzpOrderData.amount,
+          currency: rzpOrderData.currency,
+          name: 'Veloce Store',
+          description: `Payment for Order #${order.orderNumber}`,
+          order_id: rzpOrderData.razorpayOrderId,
+          handler: async function (response: any) {
+            setLoading(true);
+            try {
+              await api.post('/payments/verify', {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              });
+              await refreshCart();
+              router.push('/orders');
+            } catch (err: any) {
+              setError(err.message || 'Payment signature verification failed.');
+            } finally {
+              setLoading(false);
+            }
+          },
+          prefill: {
+            name: user?.name || '',
+            email: user?.email || '',
+          },
+          theme: {
+            color: '#8B5CF6',
+          },
+          modal: {
+            ondismiss: function () {
+              setError('Payment cancelled by customer.');
+              setLoading(false);
+            }
+          }
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+        return; // stop execution here and wait for Razorpay modal callback handler
       }
 
       await refreshCart();
@@ -403,15 +457,16 @@ export default function CheckoutPage() {
                   </label>
 
                   <label
+                    onClick={() => setPaymentMethod('card')}
                     className={`flex items-center justify-between rounded-xl border p-4 cursor-pointer transition-all ${
                       paymentMethod === 'card'
                         ? 'border-violet-500 bg-violet-500/5'
-                        : 'border-slate-850 hover:border-slate-800 bg-slate-950'
+                        : 'border-slate-900 bg-slate-950 hover:bg-slate-900/40'
                     }`}
                   >
                     <div>
-                      <span className="block font-bold text-white text-sm">Mock Credit Card</span>
-                      <span className="text-xs text-slate-500">Stripe/PayPal simulated capture</span>
+                      <span className="block font-bold text-white text-sm">Credit Card / UPI</span>
+                      <span className="text-xs text-slate-500">Razorpay Standard Checkout</span>
                     </div>
                     <input
                       type="radio"
@@ -424,19 +479,19 @@ export default function CheckoutPage() {
                   </label>
                 </div>
 
-                {/* Secure Stripe Checkout Information Box */}
+                {/* Razorpay Standard Checkout Information Box */}
                 {paymentMethod === 'card' && (
                   <div className="mt-6 border-t border-slate-900 pt-6 space-y-3 animate-fadeIn text-xs text-slate-400">
                     <div className="flex items-center gap-2 text-violet-400 font-bold uppercase tracking-wider">
                       <span className="text-lg">💳</span>
-                      <span>Stripe Secure Gateway</span>
+                      <span>Razorpay Standard Checkout</span>
                     </div>
                     <p className="leading-relaxed">
-                      You will be securely redirected to Stripe Checkout to enter your payment details. No credit card information will be processed or stored on our servers.
+                      You will pay securely via Razorpay Standard Checkout popup supporting Cards, Netbanking, UPI, and wallets. No raw card or bank details are processed or stored on our servers.
                     </p>
                     <div className="flex gap-2.5 items-center mt-2 rounded-xl bg-violet-500/5 border border-violet-500/10 p-3">
                       <span className="text-violet-400 font-bold">✓</span>
-                      <span>PCI-DSS Compliant Encryption</span>
+                      <span>Secure 256-bit SSL Encrypted Transactions</span>
                     </div>
                   </div>
                 )}

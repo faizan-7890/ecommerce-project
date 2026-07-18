@@ -28,8 +28,9 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/ecommerce?schema=public
       - JWT_SECRET=ecommerce_jwt_secret_key_2026_safe_and_secure
       - FRONTEND_URL=http://localhost:3000
-      - STRIPE_SECRET_KEY=sk_test_placeholder_key_change_in_production
-      - STRIPE_WEBHOOK_SECRET=whsec_placeholder_key_change_in_production
+      - RAZORPAY_KEY_ID=rzp_test_placeholder_key_change_in_production
+      - RAZORPAY_KEY_SECRET=placeholder_secret_change_in_production
+      - RAZORPAY_WEBHOOK_SECRET=placeholder_webhook_secret_change_in_production
     depends_on:
       - db
 
