@@ -21,10 +21,10 @@ export default function CartPage() {
 
   if (!user) {
     return (
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
         <Header />
-        <main className="flex-1 flex items-center justify-center bg-slate-950">
-          <p className="text-slate-400">Redirecting to login...</p>
+        <main className="flex-1 flex items-center justify-center">
+          <p className="text-slate-400 animate-pulse">Redirecting to login...</p>
         </main>
         <Footer />
       </div>
@@ -48,7 +48,7 @@ export default function CartPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950">
+    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
       <Header />
 
       <main className="flex-1 py-12 px-4 sm:px-6 lg:px-8">
@@ -79,14 +79,23 @@ export default function CartPage() {
                         <Link href={`/products/${item.productId}`} className="font-bold text-white hover:text-violet-400 transition-colors">
                           {item.name}
                         </Link>
-                        <div className="mt-1 flex items-center gap-2 text-xs">
+                        
+                        {/* Variant Attributes details */}
+                        {item.size || item.color ? (
+                          <div className="mt-0.5 text-xs text-slate-500">
+                            Size: <span className="text-slate-400 mr-2">{item.size || 'N/A'}</span>
+                            Color: <span className="text-slate-400">{item.color || 'N/A'}</span>
+                          </div>
+                        ) : null}
+
+                        <div className="mt-1.5 flex items-center gap-2 text-xs">
                           {item.discount > 0 ? (
                             <>
                               <span className="font-semibold text-white">${item.finalUnitPrice.toFixed(2)}</span>
-                              <span className="text-slate-500 line-through">${item.price.toFixed(2)}</span>
+                              <span className="text-slate-500 line-through">${item.basePrice.toFixed(2)}</span>
                             </>
                           ) : (
-                            <span className="text-slate-400">${item.price.toFixed(2)}</span>
+                            <span className="text-slate-400">${item.basePrice.toFixed(2)}</span>
                           )}
                         </div>
                       </div>

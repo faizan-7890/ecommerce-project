@@ -16,15 +16,25 @@ interface Category {
   name: string;
 }
 
+interface ProductVariant {
+  id: number;
+  sku: string;
+  price: number | null;
+  stock: number;
+  size: string | null;
+  color: string | null;
+}
+
 interface Product {
   id: number;
   name: string;
   description: string;
-  price: number;
-  discount: number;
+  basePrice: number;
+  discountPrice: number;
   stock: number;
   images: ProductImage[];
   category: Category;
+  variants: ProductVariant[];
 }
 
 export default function ProductCard({ product }: { product: Product }) {
@@ -35,14 +45,25 @@ export default function ProductCard({ product }: { product: Product }) {
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const originalPrice = parseFloat(product.price.toString());
-  const discountPercentage = parseFloat(product.discount?.toString() || '0');
-  const hasDiscount = discountPercentage > 0;
-  const finalPrice = hasDiscount ? originalPrice * (1 - discountPercentage / 100) : originalPrice;
+  const originalPrice = parseFloat(product.basePrice.toString());
+  const discountAmount = parseFloat(product.discountPrice?.toString() || '0');
+  const hasDiscount = discountAmount > 0;
+  const finalPrice = hasDiscount ? originalPrice - discountAmount : originalPrice;
+
+  // Enforce total product stock from variants
+  const totalStock = product.variants && product.variants.length > 0
+    ? product.variants.reduce((acc, v) => acc + v.stock, 0)
+    : product.stock;
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    // Redirect to detail page if product has size/color variants
+    if (product.variants && product.variants.length > 0) {
+      router.push(`/products/${product.id}`);
+      return;
+    }
 
     if (!user) {
       router.push('/login');
@@ -52,7 +73,7 @@ export default function ProductCard({ product }: { product: Product }) {
     setAdding(true);
     setErrorMsg('');
     try {
-      await addToCart(product.id, 1);
+      await addToCart(product.id, null, 1);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
     } catch (err: any) {
@@ -65,7 +86,7 @@ export default function ProductCard({ product }: { product: Product }) {
 
   const imageUrl = product.images.length > 0
     ? product.images[0].url
-    : 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=600&auto=format&fit=crop'; // Sleek default watch product placeholder
+    : 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=600&auto=format&fit=crop';
 
   return (
     <Link href={`/products/${product.id}`} className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-900 bg-slate-900/40 p-4 transition-all duration-300 hover:border-slate-800 hover:bg-slate-900/60 hover:shadow-2xl hover:shadow-violet-500/5">
@@ -78,10 +99,10 @@ export default function ProductCard({ product }: { product: Product }) {
         />
         {hasDiscount && (
           <span className="absolute top-2 left-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-2 py-0.5 text-xs font-bold text-white shadow-md">
-            -{discountPercentage}%
+            Save ${discountAmount.toFixed(0)}
           </span>
         )}
-        {product.stock <= 0 && (
+        {totalStock <= 0 && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80">
             <span className="rounded-md border border-slate-800 bg-slate-900 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400">
               Out Of Stock
@@ -93,7 +114,7 @@ export default function ProductCard({ product }: { product: Product }) {
       {/* Product Info */}
       <div className="mt-4 flex flex-1 flex-col">
         <span className="text-xs font-semibold uppercase tracking-wider text-violet-400">
-          {product.category.name}
+          {product.category?.name || 'Catalog'}
         </span>
         <h3 className="mt-1 text-base font-bold text-white group-hover:text-violet-400 transition-colors duration-200 line-clamp-1">
           {product.name}
@@ -123,13 +144,13 @@ export default function ProductCard({ product }: { product: Product }) {
 
           <button
             onClick={handleAddToCart}
-            disabled={product.stock <= 0 || adding}
+            disabled={totalStock <= 0 || adding}
             className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-300 shadow-md ${
               success
                 ? 'bg-emerald-500 text-white'
                 : errorMsg
                 ? 'bg-red-500 text-white'
-                : product.stock <= 0
+                : totalStock <= 0
                 ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
                 : 'bg-slate-850 hover:bg-gradient-to-r hover:from-violet-500 hover:to-fuchsia-500 text-slate-200 hover:text-white hover:shadow-violet-500/20'
             }`}
@@ -147,7 +168,13 @@ export default function ProductCard({ product }: { product: Product }) {
               <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
               </svg>
+            ) : product.variants && product.variants.length > 0 ? (
+              // Option settings selector icon
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+              </svg>
             ) : (
+              // Standard plus add icon
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>

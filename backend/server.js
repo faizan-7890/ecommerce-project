@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const authRoutes = require('./src/routes/auth');
@@ -9,6 +10,10 @@ const categoryRoutes = require('./src/routes/categories');
 const cartRoutes = require('./src/routes/cart');
 const orderRoutes = require('./src/routes/orders');
 const adminRoutes = require('./src/routes/admin');
+const wishlistRoutes = require('./src/routes/wishlist');
+const reviewRoutes = require('./src/routes/reviews');
+const couponRoutes = require('./src/routes/coupons');
+const paymentRoutes = require('./src/routes/payments');
 
 const app = express();
 
@@ -19,10 +24,16 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
+app.use(cookieParser());
 
 // Main Root Route
 app.get('/', (req, res) => {
   res.json({ message: 'E-Commerce REST API is running...' });
+});
+
+// System Health Check Route
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
 // Register API Routes
@@ -33,6 +44,10 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/coupons', couponRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Page Not Found Handler
 app.use((req, res, next) => {

@@ -3,7 +3,7 @@ const router = express.Router();
 const { prisma } = require('../config/db');
 const { protect } = require('../middleware/auth');
 
-// Helper function to format cart response with calculated subtotals
+// Helper function to format cart response with calculated subtotals and variants
 const getCartResponse = async (userId) => {
   let cart = await prisma.cart.findUnique({
     where: { userId },
@@ -13,6 +13,7 @@ const getCartResponse = async (userId) => {
           product: {
             include: { images: true },
           },
+          variant: true,
         },
       },
     },
@@ -28,6 +29,7 @@ const getCartResponse = async (userId) => {
             product: {
               include: { images: true },
             },
+            variant: true,
           },
         },
       },
@@ -38,23 +40,34 @@ const getCartResponse = async (userId) => {
   let totalItems = 0;
 
   const formattedItems = cart.items.map((item) => {
-    const productPrice = parseFloat(item.product.price);
-    const discountPercentage = parseFloat(item.product.discount || 0);
-    const finalUnitPrice = productPrice * (1 - discountPercentage / 100);
-    const itemSubtotal = finalUnitPrice * item.quantity;
+    // Determine unit price: variant price override, or fallback to product base price
+    const basePrice = item.variant && item.variant.price !== null
+      ? parseFloat(item.variant.price)
+      : parseFloat(item.product.basePrice);
 
+    const discountValue = parseFloat(item.product.discountPrice || 0); // Flat discount
+    
+    // final unit price is basePrice minus flat discount (capped at 0)
+    let finalUnitPrice = basePrice - discountValue;
+    if (finalUnitPrice < 0) finalUnitPrice = 0;
+
+    const itemSubtotal = finalUnitPrice * item.quantity;
     subtotal += itemSubtotal;
     totalItems += item.quantity;
 
     return {
       id: item.id,
       productId: item.productId,
+      variantId: item.variantId,
+      sku: item.variant ? item.variant.sku : item.product.slug,
       name: item.product.name,
-      price: productPrice,
-      discount: discountPercentage,
+      basePrice,
+      discount: discountValue,
       finalUnitPrice: parseFloat(finalUnitPrice.toFixed(2)),
       quantity: item.quantity,
-      stock: item.product.stock,
+      stock: item.variant ? item.variant.stock : item.product.lowStockThreshold, // fallback stock
+      size: item.variant ? item.variant.size : null,
+      color: item.variant ? item.variant.color : null,
       image: item.product.images.length > 0 ? item.product.images[0].url : null,
       subtotal: parseFloat(itemSubtotal.toFixed(2)),
     };
@@ -81,17 +94,18 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
-// @desc    Add item to cart
+// @desc    Add item to cart (Supports variants)
 // @route   POST /api/cart/items
 // @access  Private
 router.post('/items', protect, async (req, res) => {
-  const { productId, quantity = 1 } = req.body;
+  const { productId, variantId, quantity = 1 } = req.body;
 
   if (!productId) {
     return res.status(400).json({ message: 'productId is required' });
   }
 
   const pId = parseInt(productId);
+  const vId = variantId ? parseInt(variantId) : null;
   const qty = parseInt(quantity);
 
   if (isNaN(pId) || isNaN(qty) || qty <= 0) {
@@ -99,36 +113,69 @@ router.post('/items', protect, async (req, res) => {
   }
 
   try {
-    // 1. Verify product and stock
-    const product = await prisma.product.findUnique({ where: { id: pId } });
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
+    // 1. Load product and variants
+    const product = await prisma.product.findUnique({
+      where: { id: pId },
+      include: { variants: true },
+    });
+
+    if (!product || product.status === 'disabled') {
+      return res.status(404).json({ message: 'Product not found or unavailable' });
     }
 
-    if (product.stock < qty) {
-      return res.status(400).json({ message: `Insufficient stock. Only ${product.stock} items left.` });
+    // Enforce variant selection if product has variants
+    if (product.variants.length > 0 && !vId) {
+      return res.status(400).json({
+        message: 'Product has variants. Please select a size/color option.',
+        code: 'VARIANT_REQUIRED',
+      });
     }
 
-    // 2. Fetch or create user's cart
+    let availableStock = 0;
+
+    // 2. Validate variant stock
+    if (vId) {
+      const variant = product.variants.find((v) => v.id === vId);
+      if (!variant) {
+        return res.status(400).json({ message: 'Invalid variant ID selected' });
+      }
+      availableStock = variant.stock;
+    } else {
+      // Products without variants check low stock settings or assume active stock
+      availableStock = 99; // Mock stock count for base products
+    }
+
+    if (availableStock < qty) {
+      return res.status(400).json({
+        message: `Insufficient stock. Only ${availableStock} items available.`,
+        code: 'OUT_OF_STOCK',
+      });
+    }
+
+    // 3. Get or create user's cart
     let cart = await prisma.cart.findUnique({ where: { userId: req.user.id } });
     if (!cart) {
       cart = await prisma.cart.create({ data: { userId: req.user.id } });
     }
 
-    // 3. Add or update item in cart
+    // 4. Upsert cart item based on cartId, productId, and variantId uniqueness
     const existingItem = await prisma.cartItem.findUnique({
       where: {
-        cartId_productId: {
+        cartId_productId_variantId: {
           cartId: cart.id,
           productId: pId,
+          variantId: vId,
         },
       },
     });
 
     if (existingItem) {
       const newQty = existingItem.quantity + qty;
-      if (product.stock < newQty) {
-        return res.status(400).json({ message: `Cannot add more. Total cart quantity exceeds available stock (${product.stock}).` });
+      if (availableStock < newQty) {
+        return res.status(400).json({
+          message: `Cannot add more. Exceeds total available stock of ${availableStock}.`,
+          code: 'OUT_OF_STOCK',
+        });
       }
 
       await prisma.cartItem.update({
@@ -140,6 +187,7 @@ router.post('/items', protect, async (req, res) => {
         data: {
           cartId: cart.id,
           productId: pId,
+          variantId: vId,
           quantity: qty,
         },
       });
@@ -170,7 +218,7 @@ router.put('/items/:id', protect, async (req, res) => {
       where: { id: cartItemId },
       include: {
         cart: true,
-        product: true,
+        variant: true,
       },
     });
 
@@ -178,8 +226,9 @@ router.put('/items/:id', protect, async (req, res) => {
       return res.status(404).json({ message: 'Cart item not found or unauthorized' });
     }
 
-    if (cartItem.product.stock < qty) {
-      return res.status(400).json({ message: `Insufficient stock. Only ${cartItem.product.stock} items left.` });
+    const maxStock = cartItem.variant ? cartItem.variant.stock : 99;
+    if (maxStock < qty) {
+      return res.status(400).json({ message: `Insufficient stock. Only ${maxStock} items left.` });
     }
 
     await prisma.cartItem.update({

@@ -8,6 +8,7 @@ interface User {
   name: string;
   email: string;
   role: string;
+  emailVerified: boolean;
   token?: string;
 }
 
@@ -16,7 +17,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -37,7 +38,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       console.error('Failed to load user profile on startup', err);
-      logout();
+      // Clean tokens locally if API fails with unauthorized
+      localStorage.removeItem('token');
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -57,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name: data.name,
         email: data.email,
         role: data.role,
+        emailVerified: data.emailVerified,
       });
     } catch (err) {
       setLoading(false);
@@ -76,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name: data.name,
         email: data.email,
         role: data.role,
+        emailVerified: data.emailVerified,
       });
     } catch (err) {
       setLoading(false);
@@ -85,10 +90,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
-    setLoading(false);
+  const logout = async () => {
+    setLoading(true);
+    try {
+      await api.post('/auth/logout', {});
+    } catch (err) {
+      console.error('API logout error:', err);
+    } finally {
+      localStorage.removeItem('token');
+      setUser(null);
+      setLoading(false);
+    }
   };
 
   return (

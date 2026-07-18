@@ -7,12 +7,16 @@ import { useAuth } from './AuthContext';
 interface CartItem {
   id: number;
   productId: number;
+  variantId: number | null;
+  sku: string;
   name: string;
-  price: number;
+  basePrice: number;
   discount: number;
   finalUnitPrice: number;
   quantity: number;
   stock: number;
+  size: string | null;
+  color: string | null;
   image: string | null;
   subtotal: number;
 }
@@ -27,7 +31,7 @@ interface Cart {
 interface CartContextType {
   cart: Cart | null;
   loading: boolean;
-  addToCart: (productId: number, quantity?: number) => Promise<void>;
+  addToCart: (productId: number, variantId?: number | null, quantity?: number) => Promise<void>;
   updateQuantity: (itemId: number, quantity: number) => Promise<void>;
   removeFromCart: (itemId: number) => Promise<void>;
   refreshCart: () => Promise<void>;
@@ -62,13 +66,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  const addToCart = async (productId: number, quantity: number = 1) => {
+  const addToCart = async (productId: number, variantId: number | null = null, quantity: number = 1) => {
     if (!user) {
       throw new Error('Please login to add items to cart');
     }
     setLoading(true);
     try {
-      const data = await api.post('/cart/items', { productId, quantity });
+      const data = await api.post('/cart/items', { productId, variantId, quantity });
       setCart(data);
     } catch (err) {
       throw err;
