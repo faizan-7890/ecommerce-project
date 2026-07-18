@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database Service
+  db:
+    image: postgres:15-alpine
+    container_name: veloce-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ecommerce
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # 2. Node.js Express Backend REST API
+  backend:
+    build: ./backend
+    container_name: veloce-backend-api
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ecommerce?schema=public
+      - JWT_SECRET=ecommerce_jwt_secret_key_2026_safe_and_secure
+      - FRONTEND_URL=http://localhost:3000
+      - STRIPE_SECRET_KEY=sk_test_placeholder_key_change_in_production
+      - STRIPE_WEBHOOK_SECRET=whsec_placeholder_key_change_in_production
+    depends_on:
+      - db
+
+volumes:
+  pgdata:

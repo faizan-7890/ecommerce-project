@@ -8,11 +8,13 @@ const generateOrderNumber = () => {
   return `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 };
 
-// @desc    Create a new order (Concurrency-Safe Checkout with Coupons & Variants)
+// @desc    Create a new order (Concurrency-Safe Checkout with Postgres Row-level Locks & Idempotency)
 // @route   POST /api/orders
 // @access  Private
 router.post('/', protect, async (req, res) => {
   const { shippingAddressId, billingAddressId, couponCode, paymentMethod = 'cod' } = req.body;
+  const idempotencyKey = req.headers['x-idempotency-key'];
+
   const shipId = parseInt(shippingAddressId);
   const billId = billingAddressId ? parseInt(billingAddressId) : null;
 
@@ -21,7 +23,19 @@ router.post('/', protect, async (req, res) => {
   }
 
   try {
-    // 1. Fetch user shipping/billing addresses
+    // 1. Enforce Idempotency check to reject duplicate checkout submissions
+    if (idempotencyKey) {
+      const existingOrder = await prisma.order.findUnique({
+        where: { idempotencyKey },
+        include: { items: true, payments: true },
+      });
+      if (existingOrder) {
+        console.log(`[Idempotency Key Triggered] Order already processed for key: ${idempotencyKey}`);
+        return res.status(200).json(existingOrder);
+      }
+    }
+
+    // 2. Fetch user shipping/billing addresses
     const shippingAddress = await prisma.address.findUnique({ where: { id: shipId } });
     if (!shippingAddress || shippingAddress.userId !== req.user.id) {
       return res.status(400).json({ message: 'Invalid shippingAddressId' });
@@ -51,7 +65,7 @@ router.post('/', protect, async (req, res) => {
     const shippingSnapshot = formatAddressSnapshot(shippingAddress);
     const billingSnapshot = formatAddressSnapshot(billingAddress);
 
-    // 2. Fetch user's cart items
+    // 3. Fetch user's cart items
     const cart = await prisma.cart.findUnique({
       where: { userId: req.user.id },
       include: {
@@ -82,7 +96,7 @@ router.post('/', protect, async (req, res) => {
       subtotal += finalPrice * item.quantity;
     }
 
-    // 3. Process Coupon Discount
+    // 4. Process Coupon Discount with race condition validation
     let discountAmount = 0;
     let coupon = null;
 
@@ -94,7 +108,7 @@ router.post('/', protect, async (req, res) => {
       if (coupon && coupon.isActive) {
         const meetsMinAmount = subtotal >= parseFloat(coupon.minOrderAmount);
         const notExpired = !coupon.expirationDate || new Date(coupon.expirationDate) > new Date();
-        
+
         let underUsageLimit = true;
         if (coupon.usageLimit !== null) {
           const usagesCount = await prisma.couponUsage.count({ where: { couponId: coupon.id } });
@@ -113,7 +127,7 @@ router.post('/', protect, async (req, res) => {
       }
     }
 
-    // 4. Calculate Tax and Shipping fees
+    // 5. Calculate Tax and Shipping fees
     const taxableSubtotal = subtotal - discountAmount;
     const taxAmount = taxableSubtotal * 0.08; // 8% sales tax
     
@@ -121,22 +135,27 @@ router.post('/', protect, async (req, res) => {
     const shippingAmount = taxableSubtotal >= 100.00 ? 0.00 : 10.00;
     const finalTotal = taxableSubtotal + taxAmount + shippingAmount;
 
-    // 5. Execute Checkout Database Transaction (enforces concurrency and inventory reservations)
+    // 6. Execute Concurrency-Safe Postgres Transaction
     const order = await prisma.$transaction(async (tx) => {
       
-      // Step A: Reserve and deduct stock at the variant level
+      // Step A: Lock rows and verify stock levels
       for (const item of cart.items) {
         if (item.variantId) {
-          // Lock variant row for update to prevent race conditions in Postgres
-          const variant = await tx.productVariant.findUnique({
-            where: { id: item.variantId },
-          });
+          // PostgreSQL Row-level Lock (FOR UPDATE)
+          // Prevents concurrent checkout threads from accessing this row until transaction commits
+          const lockedVariants = await tx.$queryRaw`
+            SELECT id, stock FROM "ProductVariant"
+            WHERE id = ${item.variantId}
+            FOR UPDATE
+          `;
+
+          const variant = lockedVariants[0];
 
           if (!variant || variant.stock < item.quantity) {
-            throw new Error(`Product ${item.product.name} variant is out of stock or has insufficient quantity.`);
+            throw new Error(`Variant selection of ${item.product.name} is out of stock or lacks required quantity.`);
           }
 
-          // Decrement stock
+          // Decrement stock safe inside transaction
           const updatedVariant = await tx.productVariant.update({
             where: { id: item.variantId },
             data: {
@@ -176,7 +195,11 @@ router.post('/', protect, async (req, res) => {
           billingAddressSnapshot: billingSnapshot,
           shippingAddressId: shipId,
           billingAddressId: billId || shipId,
-          status: paymentMethod === 'cod' ? 'pending' : 'payment_pending',
+          orderStatus: paymentMethod === 'cod' ? 'pending' : 'pending',
+          paymentStatus: paymentMethod === 'cod' ? 'unpaid' : 'unpaid',
+          shipmentStatus: 'unfulfilled',
+          refundStatus: 'none',
+          idempotencyKey,
           items: {
             create: cart.items.map((item) => {
               const basePrice = item.variant && item.variant.price !== null
@@ -316,7 +339,7 @@ router.get('/:id', protect, async (req, res) => {
   }
 });
 
-// @desc    Cancel order (Pending state only)
+// @desc    Cancel order (Pending state only, double restorations protection)
 // @route   PUT /api/orders/:id/cancel
 // @access  Private
 router.put('/:id/cancel', protect, async (req, res) => {
@@ -339,24 +362,33 @@ router.put('/:id/cancel', protect, async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized' });
     }
 
-    // Cancellation criteria: pending or payment_pending only
-    if (order.status !== 'pending' && order.status !== 'payment_pending') {
-      return res.status(400).json({ message: `Cannot cancel orders with status '${order.status}'` });
+    // Cancellation check: pending order status only
+    if (order.orderStatus !== 'pending') {
+      return res.status(400).json({ message: `Cannot cancel orders with status '${order.orderStatus}'` });
+    }
+
+    // Double restoration guard: check if already cancelled or refunded
+    if (order.orderStatus === 'cancelled' || order.orderStatus === 'refunded') {
+      return res.status(400).json({ message: 'This order has already been cancelled and stock has been restored.' });
     }
 
     // Restore stock and cancel order
     const updated = await prisma.$transaction(async (tx) => {
+      // 1. Update statuses
       const ord = await tx.order.update({
         where: { id },
-        data: { status: 'cancelled' },
+        data: {
+          orderStatus: 'cancelled',
+          paymentStatus: 'failed',
+        },
       });
 
-      // Restore variant stock
+      // 2. Restore variant stock
       for (const item of order.items) {
         if (item.variantId) {
           const variant = await tx.productVariant.findUnique({ where: { id: item.variantId } });
           const newQty = (variant?.stock || 0) + item.quantity;
-          
+
           await tx.productVariant.update({
             where: { id: item.variantId },
             data: { stock: { increment: item.quantity } },

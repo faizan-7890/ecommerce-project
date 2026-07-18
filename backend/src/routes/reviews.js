@@ -48,7 +48,7 @@ router.post('/', protect, async (req, res) => {
     const deliveredOrder = await prisma.order.findFirst({
       where: {
         userId: req.user.id,
-        status: 'delivered',
+        orderStatus: 'delivered',
         items: {
           some: { productId: pId },
         },

@@ -171,37 +171,31 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (paymentMethod === 'card') {
-      if (!cardNumber || !cardExpiry || !cardCvc) {
-        setError('Please fill in credit card credentials');
-        return;
-      }
-    }
-
     setLoading(true);
     try {
+      // Generate unique idempotency key
+      const idempotencyKey = `idemp-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+
       // 1. Place order
       const order = await api.post('/orders', {
         shippingAddressId: selectedAddressId,
         billingAddressId: selectedAddressId,
         couponCode: appliedCoupon ? appliedCoupon.code : undefined,
         paymentMethod,
+      }, {
+        'x-idempotency-key': idempotencyKey,
       });
 
-      // 2. Process simulated payment captures
+      // 2. Redirect to Stripe Checkout Session
       if (paymentMethod === 'card') {
         const paymentRes = await api.post('/payments/create', {
           orderId: order.id,
-          paymentMethod: 'card',
         });
 
-        // Simulate network latency for payment gateway capture
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-
-        await api.post('/payments/verify', {
-          transactionId: paymentRes.payment.transactionId,
-          status: 'success', // Simulates successful authorization
-        });
+        if (paymentRes.checkoutUrl) {
+          window.location.href = paymentRes.checkoutUrl;
+          return;
+        }
       }
 
       await refreshCart();
@@ -430,46 +424,19 @@ export default function CheckoutPage() {
                   </label>
                 </div>
 
-                {/* Mock Card Form Input */}
+                {/* Secure Stripe Checkout Information Box */}
                 {paymentMethod === 'card' && (
-                  <div className="mt-6 border-t border-slate-900 pt-6 space-y-4 animate-fadeIn">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-450">Card Credentials</h3>
-                    
-                    <div>
-                      <label className="text-[10px] text-slate-400 block mb-1">Card Number</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="4242 •••• •••• 4242"
-                        value={cardNumber}
-                        onChange={(e) => setCardNumber(e.target.value)}
-                        className="w-full rounded-lg border border-slate-850 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:outline-none"
-                      />
+                  <div className="mt-6 border-t border-slate-900 pt-6 space-y-3 animate-fadeIn text-xs text-slate-400">
+                    <div className="flex items-center gap-2 text-violet-400 font-bold uppercase tracking-wider">
+                      <span className="text-lg">💳</span>
+                      <span>Stripe Secure Gateway</span>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] text-slate-400 block mb-1">Expiration Date</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="MM/YY"
-                          value={cardExpiry}
-                          onChange={(e) => setCardExpiry(e.target.value)}
-                          className="w-full rounded-lg border border-slate-850 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-400 block mb-1">CVC Code</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="•••"
-                          value={cardCvc}
-                          onChange={(e) => setCardCvc(e.target.value)}
-                          className="w-full rounded-lg border border-slate-850 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:outline-none"
-                        />
-                      </div>
+                    <p className="leading-relaxed">
+                      You will be securely redirected to Stripe Checkout to enter your payment details. No credit card information will be processed or stored on our servers.
+                    </p>
+                    <div className="flex gap-2.5 items-center mt-2 rounded-xl bg-violet-500/5 border border-violet-500/10 p-3">
+                      <span className="text-violet-400 font-bold">✓</span>
+                      <span>PCI-DSS Compliant Encryption</span>
                     </div>
                   </div>
                 )}

@@ -31,20 +31,34 @@ router.get('/orders', async (req, res) => {
   }
 });
 
-// @desc    Update order status (with stock restoration and audit logging)
+// @desc    Update order statuses (with stock restoration and audit logging)
 // @route   PUT /api/admin/orders/:id/status
 // @access  Private/Admin
 router.put('/orders/:id/status', async (req, res) => {
   const id = parseInt(req.params.id);
-  const { status } = req.body;
-
-  const validStatuses = ['pending', 'payment_pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
-  if (!status || !validStatuses.includes(status)) {
-    return res.status(400).json({ message: `Invalid status. Choose from: ${validStatuses.join(', ')}` });
-  }
+  const { orderStatus, paymentStatus, shipmentStatus, refundStatus } = req.body;
 
   if (isNaN(id)) {
     return res.status(400).json({ message: 'Invalid order ID' });
+  }
+
+  // Validate inputs if provided
+  const validOrderStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
+  const validPaymentStatuses = ['unpaid', 'authorized', 'paid', 'failed', 'refunded', 'partially_refunded'];
+  const validShipmentStatuses = ['unfulfilled', 'label_created', 'shipped', 'in_transit', 'delivered'];
+  const validRefundStatuses = ['none', 'pending', 'completed', 'failed'];
+
+  if (orderStatus && !validOrderStatuses.includes(orderStatus)) {
+    return res.status(400).json({ message: `Invalid orderStatus: ${orderStatus}` });
+  }
+  if (paymentStatus && !validPaymentStatuses.includes(paymentStatus)) {
+    return res.status(400).json({ message: `Invalid paymentStatus: ${paymentStatus}` });
+  }
+  if (shipmentStatus && !validShipmentStatuses.includes(shipmentStatus)) {
+    return res.status(400).json({ message: `Invalid shipmentStatus: ${shipmentStatus}` });
+  }
+  if (refundStatus && !validRefundStatuses.includes(refundStatus)) {
+    return res.status(400).json({ message: `Invalid refundStatus: ${refundStatus}` });
   }
 
   try {
@@ -57,23 +71,36 @@ router.put('/orders/:id/status', async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    if (order.status === status) {
-      return res.json(order);
-    }
-
-    // Process status updates
+    // Process status updates within a transaction
     const updated = await prisma.$transaction(async (tx) => {
-      // 1. Update status
+      const dataToUpdate = {};
+      if (orderStatus) dataToUpdate.orderStatus = orderStatus;
+      if (paymentStatus) dataToUpdate.paymentStatus = paymentStatus;
+      if (shipmentStatus) dataToUpdate.shipmentStatus = shipmentStatus;
+      if (refundStatus) dataToUpdate.refundStatus = refundStatus;
+
+      // 1. Update statuses
       const updatedOrder = await tx.order.update({
         where: { id },
-        data: { status },
+        data: dataToUpdate,
       });
 
       // 2. Enforce inventory return if status transitions to cancelled/refunded and wasn't before
-      if ((status === 'cancelled' || status === 'refunded') && order.status !== 'cancelled' && order.status !== 'refunded') {
+      // Guard: Ensure previous orderStatus was NOT cancelled/refunded to avoid double restoration
+      const isTransitioningToCancelled = (orderStatus === 'cancelled' || orderStatus === 'refunded' || refundStatus === 'completed') &&
+                                         (order.orderStatus !== 'cancelled' && order.orderStatus !== 'refunded');
+
+      if (isTransitioningToCancelled) {
         for (const item of order.items) {
           if (item.variantId) {
-            const variant = await tx.productVariant.findUnique({ where: { id: item.variantId } });
+            // Lock row
+            const lockedVariants = await tx.$queryRaw`
+              SELECT id, stock FROM "ProductVariant"
+              WHERE id = ${item.variantId}
+              FOR UPDATE
+            `;
+            const variant = lockedVariants[0];
+
             const newQty = (variant?.stock || 0) + item.quantity;
 
             await tx.productVariant.update({
@@ -89,7 +116,7 @@ router.put('/orders/:id/status', async (req, res) => {
                 previousQuantity: variant?.stock || 0,
                 newQuantity: newQty,
                 changeAmount: item.quantity,
-                reason: status === 'refunded' ? 'refund' : 'cancellation',
+                reason: orderStatus === 'refunded' || refundStatus === 'completed' ? 'refund' : 'cancellation',
                 orderId: id,
                 updatedBy: `admin_${req.user.id}`,
               },
@@ -97,19 +124,23 @@ router.put('/orders/:id/status', async (req, res) => {
           }
         }
 
-        // De-authorize payment status
+        // De-authorize payment status in payments table if cancelled
         await tx.payment.updateMany({
           where: { orderId: id },
-          data: { status: status === 'refunded' ? 'refunded' : 'failed' },
+          data: { status: orderStatus === 'refunded' || refundStatus === 'completed' ? 'refunded' : 'failed' },
         });
       }
 
       // 3. Create AuditLog entry for admin actions
+      const changesString = Object.entries(dataToUpdate)
+        .map(([k, v]) => `${k} -> '${v}'`)
+        .join(', ');
+
       await tx.auditLog.create({
         data: {
           userId: req.user.id,
           action: 'update_order_status',
-          description: `Updated status of Order #${order.orderNumber} from '${order.status}' to '${status}'`,
+          description: `Admin updated Order #${order.orderNumber} statuses: ${changesString}`,
         },
       });
 
@@ -119,7 +150,7 @@ router.put('/orders/:id/status', async (req, res) => {
     res.json(updated);
   } catch (error) {
     console.error('Update status error:', error);
-    res.status(500).json({ message: 'Server error updating order status' });
+    res.status(500).json({ message: 'Server error updating order statuses' });
   }
 });
 
@@ -156,7 +187,7 @@ router.get('/stats', async (req, res) => {
     const activeOrders = await prisma.order.findMany({
       where: {
         createdAt: { gte: start, lte: end },
-        status: { not: 'cancelled' },
+        orderStatus: { not: 'cancelled' },
       },
       select: { total: true },
     });
@@ -179,10 +210,10 @@ router.get('/stats', async (req, res) => {
 
     // 2. Fetch Order Status Counts in timeframe
     const pendingOrdersCount = await prisma.order.count({
-      where: { status: 'pending', createdAt: { gte: start, lte: end } },
+      where: { orderStatus: 'pending', createdAt: { gte: start, lte: end } },
     });
     const cancelledOrdersCount = await prisma.order.count({
-      where: { status: 'cancelled', createdAt: { gte: start, lte: end } },
+      where: { orderStatus: 'cancelled', createdAt: { gte: start, lte: end } },
     });
     
     // Failed payments count
@@ -195,7 +226,7 @@ router.get('/stats', async (req, res) => {
       where: {
         order: {
           createdAt: { gte: start, lte: end },
-          status: { notIn: ['cancelled', 'refunded'] },
+          orderStatus: { notIn: ['cancelled', 'returned'] },
         },
       },
       select: {

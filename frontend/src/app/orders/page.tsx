@@ -120,8 +120,8 @@ export default function OrdersPage() {
                     {/* Order Metadata */}
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-900 pb-4 text-sm">
                       <div className="space-y-1">
-                        <span className="text-xs text-slate-500">Order ID</span>
-                        <span className="block font-bold text-white">#000{order.id}</span>
+                        <span className="text-xs text-slate-500">Order Number</span>
+                        <span className="block font-bold text-white font-mono">{order.orderNumber}</span>
                       </div>
                       <div className="space-y-1">
                         <span className="text-xs text-slate-500">Date Placed</span>
@@ -137,8 +137,8 @@ export default function OrdersPage() {
                         <span className="text-xs text-slate-500">Total Charged</span>
                         <span className="block font-extrabold text-white">${parseFloat(order.total).toFixed(2)}</span>
                       </div>
-                      <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${getStatusBadge(order.status)}`}>
-                        {order.status}
+                      <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${getStatusBadge(order.orderStatus)}`}>
+                        {order.orderStatus}
                       </span>
                     </div>
 
@@ -151,15 +151,15 @@ export default function OrdersPage() {
                               item.product?.images?.[0]?.url ||
                               'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=200&auto=format&fit=crop'
                             }
-                            alt={item.product?.name}
+                            alt={item.productNameSnapshot}
                             className="h-12 w-12 rounded-lg object-cover bg-slate-950"
                           />
                           <div className="flex-1 text-sm">
-                            <span className="font-bold text-white block">{item.product?.name}</span>
+                            <span className="font-bold text-white block">{item.productNameSnapshot}</span>
                             <span className="text-slate-500">Qty: {item.quantity}</span>
                           </div>
                           <span className="text-sm font-semibold text-slate-300">
-                            ${parseFloat(item.price).toFixed(2)}
+                            ${parseFloat(item.productPriceSnapshot).toFixed(2)}
                           </span>
                         </div>
                       ))}
@@ -167,10 +167,11 @@ export default function OrdersPage() {
 
                     {/* Action Bar (e.g. Cancel order) */}
                     <div className="flex items-center justify-between border-t border-slate-900 pt-4 text-xs">
-                      <div className="text-slate-500">
-                        Payment: <span className="text-slate-300 font-semibold uppercase">{order.payment?.method}</span> ({order.payment?.status})
+                      <div className="text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
+                        <span>Payment: <span className="text-slate-300 font-bold uppercase">{order.paymentStatus}</span></span>
+                        <span>Shipment: <span className="text-slate-300 font-bold uppercase">{order.shipmentStatus}</span></span>
                       </div>
-                      {order.status === 'pending' && (
+                      {order.orderStatus === 'pending' && (
                         <button
                           onClick={() => handleCancelOrder(order.id)}
                           className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 font-bold text-red-400 hover:bg-red-500/20 transition-all"

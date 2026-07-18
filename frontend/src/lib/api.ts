@@ -118,17 +118,19 @@ export const api = {
     return customFetch(endpoint, { method: 'GET' });
   },
 
-  post(endpoint: string, data: any) {
+  post(endpoint: string, data: any, headers?: any) {
     return customFetch(endpoint, {
       method: 'POST',
       body: JSON.stringify(data),
+      headers,
     });
   },
 
-  put(endpoint: string, data?: any) {
+  put(endpoint: string, data?: any, headers?: any) {
     return customFetch(endpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined,
+      headers,
     });
   },
 

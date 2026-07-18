@@ -1,16 +1,17 @@
-# ⚡ VELOCE - Premium E-Commerce Application
+# ⚡ VELOCE - Production-Ready E-Commerce Application
 
-Veloce is a production-ready, full-stack E-Commerce platform built with a modern **Next.js 16 (App Router) + Tailwind CSS** frontend and an **Express + PostgreSQL (Prisma ORM)** backend. It incorporates secure session rotations, stock protection, product variants, coupon calculators, verified buyer reviews, mock payments, and dynamic admin analytics.
+Veloce is a production-ready, full-stack E-Commerce platform built with a modern **Next.js 16 (App Router) + Tailwind CSS** frontend and an **Express + PostgreSQL (Prisma ORM)** backend. It incorporates secure session rotations, transaction row-level locking, segregated status models, Stripe Checkout gateway, verified buyer reviews, and docker configurations.
 
 ---
 
 ## ✨ Core Features & Enhancements
 
 ### 🛡️ Security & Authentication
-* **Session Rotations**: Utilizes short-lived (15 min) Access Tokens in memory and secure, HttpOnly, SameSite `strict` cookies for revocable 7-day Refresh Tokens stored in PostgreSQL.
+* **Session Rotations**: Utilizes short-lived (15 min) Access Tokens in memory and secure, HttpOnly, SameSite `strict` cookies for revocable 7-day Refresh Tokens stored as SHA-256 hashes in PostgreSQL.
 * **Brute-Force Protection**: Endpoint rate-limiters protect authentication attempts.
-* **Simulated Recoveries**: Simulated email verifications (`POST /api/auth/verify-email`) and password resets (`POST /api/auth/forgot-password` and `/api/auth/reset-password`).
+* **Password Reset Flow**: Email verification triggers and secure password reset tokens checking 1-hour expirations.
 * **Session Revocation**: Logging out revokes active session records in the database.
+* **CSRF & CORS Origins**: Strict CORS configurations locking access only to trusted domains (`process.env.FRONTEND_URL`).
 
 ### 🛍️ Customer Experience
 * **Product Variants**: Dynamic size, color, and price options mapped to distinct SKUs and stock quantities.
@@ -18,7 +19,7 @@ Veloce is a production-ready, full-stack E-Commerce platform built with a modern
 * **Promo Code Engine**: Real-time validation checking min-order pricing, expirations, and usage limits (e.g., `WELCOME10` or `SAVE20`).
 * **Verified Customer Reviews**: Customers can submit rating stars (1-5) and comments only if they have a `delivered` order containing that item.
 * **Wishlist Registry**: Save items, check stock status, and transfer items directly to the shopping cart.
-* **Dynamic Checkout**: Real-time sales tax calculations (8%), free shipping thresholds (orders >= $100), and Stripe/PayPal simulated credit card captures.
+* **Stripe Secure Checkout**: Complete secure element redirect to Stripe Checkout, avoiding card processing or storage inside our backend servers.
 
 ### 👑 Administrator Control Panel
 * **Filtered Analytics**: Sales metrics reports filterable by range types (Today, Last 7 Days, Last 30 Days, This Year, or Custom Ranges).
@@ -40,6 +41,7 @@ ecommerce-project/
 │   │   ├── config/db.js      # Prisma client initialization
 │   │   ├── middleware/auth.js# Auth validators & Admin guards
 │   │   └── routes/           # REST Router endpoints (Auth, Cart, Orders, Reviews...)
+│   ├── tests/                # Automated Jest + Supertest integration tests
 │   ├── .env                  # Environment files
 │   └── server.js             # Server startup script
 │
@@ -48,7 +50,7 @@ ecommerce-project/
     │   ├── app/              # Next.js App Router (Marketplace, Profile, Wishlist, Checkout)
     │   ├── components/       # Premium UI components (Header, Footer, ProductCard)
     │   ├── context/          # Client state providers (Auth, Cart)
-    │   └── lib/api.ts        # Axios-style credentials interceptor client
+    │   └── lib/api.ts        # Axios-like credentials interceptor client
 ```
 
 ---
@@ -62,12 +64,12 @@ ecommerce-project/
 ---
 
 ### Step 1: Database Migration & Seeding
-Go to the backend directory, push schema definitions to PostgreSQL, and seed sample values:
+Go to the backend directory, run migrations to sync the schema, and seed test data:
 ```bash
 cd backend
 
-# Apply schema migrations to database
-npx prisma db push
+# Initialize and apply database migrations dev flow
+npx prisma migrate dev --name init
 
 # Re-generate Prisma Client typing declarations
 npx prisma generate
@@ -83,16 +85,24 @@ node prisma/seed.js
 
 ---
 
-### Step 2: Start backend server
+### Step 2: Running Automated Tests
+Run integration test suites covering health checks, auth rotations, and transaction row locks:
+```bash
+cd backend
+npm run test
+```
+
+---
+
+### Step 3: Start Services
+Start backend REST server:
 ```bash
 cd backend
 npm run dev
 ```
 * **API URL**: `http://localhost:5000`
 
----
-
-### Step 3: Start frontend client
+Start frontend client:
 ```bash
 cd frontend
 npm run dev
@@ -109,7 +119,7 @@ npm run dev
 | **GET** | `/api/health` | Public | Verify server health status and timestamp |
 | **POST** | `/api/auth/register` | Public | Register customer, initialize Cart, set HttpOnly Refresh cookie |
 | **POST** | `/api/auth/login` | Public | Authenticate user, set HttpOnly cookie, return short-lived access JWT |
-| **POST** | `/api/auth/refresh` | Public | Verify HttpOnly cookie, issue new access token |
+| **POST** | `/api/auth/refresh` | Public | Verify HttpOnly cookie, issue rotated new access & refresh tokens |
 | **POST** | `/api/auth/logout` | Public | Revoke session in DB, clear cookie headers |
 | **POST** | `/api/auth/forgot-password`| Public | Request simulated reset token link |
 | **POST** | `/api/auth/reset-password` | Public | Apply password change using verification token |
@@ -169,10 +179,10 @@ npm run dev
 | **GET** | `/api/orders` | Private | Fetch user order logs |
 | **GET** | `/api/orders/:id` | Private | View specific order specifications |
 | **PUT** | `/api/orders/:id/cancel`| Private | Cancel pending order (restores variant stock, logs inventory change) |
-| **POST** | `/api/payments/create` | Private | Initialize order payment event |
-| **POST** | `/api/payments/verify` | Private | Verify card payments authorization, completes order confirmation |
-| **POST** | `/api/payments/webhook`| Public | Simulated gateway webhook (ignores duplicates, rollbacks stock on failures) |
-| **POST** | `/api/payments/:id/refund`| Admin | Process refund of payment transaction, restores item stock |
+| **POST** | `/api/payments/create` | Private | Initialize Stripe Checkout session |
+| **POST** | `/api/payments/verify` | Private | Verify card payments authorization status |
+| **POST** | `/api/payments/webhook`| Public | Stripe-Signature checked webhook receiver (ignores duplicates) |
+| **POST** | `/api/payments/:id/refund`| Admin | Process Stripe Refund, restores variant items stock |
 
 ### Analytics & Reports
 | Method | Endpoint | Access | Description |

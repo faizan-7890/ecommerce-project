@@ -300,10 +300,10 @@ export default function AdminDashboard() {
   };
 
   // Actions: Orders status updates
-  const handleUpdateOrderStatus = async (orderId: number, status: string) => {
+  const handleUpdateOrderStatus = async (orderId: number, field: string, value: string) => {
     try {
-      await api.put(`/admin/orders/${orderId}/status`, { status });
-      alert(`Order status updated to '${status}'`);
+      await api.put(`/admin/orders/${orderId}/status`, { [field]: value });
+      alert(`Order ${field} updated to '${value}'`);
       loadAllOrders();
     } catch (err: any) {
       alert(err.message || 'Failed to update order status');
@@ -867,32 +867,59 @@ export default function AdminDashboard() {
                           </td>
                           <td className="py-4 text-slate-350">${parseFloat(ord.total).toFixed(2)}</td>
                           <td className="py-4">
-                            <span className={`rounded px-2.5 py-1 text-[10px] font-extrabold uppercase border ${
-                              ord.status === 'delivered'
-                                ? 'bg-emerald-500/10 text-emerald-450 border-emerald-500/20'
-                                : ord.status === 'cancelled' || ord.status === 'refunded'
-                                ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                                : ord.status === 'pending'
-                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                                : 'bg-violet-500/10 text-violet-400 border-violet-500/20'
-                            }`}>
-                              {ord.status}
-                            </span>
+                            <div className="flex flex-col gap-1 text-[10px]">
+                              <span className="font-bold">Order: <span className="text-violet-400 uppercase">{ord.orderStatus}</span></span>
+                              <span className="text-slate-400">Payment: <span className="text-slate-350 uppercase">{ord.paymentStatus}</span></span>
+                              <span className="text-slate-400">Shipment: <span className="text-slate-350 uppercase">{ord.shipmentStatus}</span></span>
+                            </div>
                           </td>
                           <td className="py-4 text-right">
-                            <select
-                              value={ord.status}
-                              onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value)}
-                              className="rounded-lg border border-slate-850 bg-slate-950 px-2 py-1 text-xs text-slate-300 focus:outline-none"
-                            >
-                              <option value="pending">Pending</option>
-                              <option value="confirmed">Confirmed</option>
-                              <option value="processing">Processing</option>
-                              <option value="shipped">Shipped</option>
-                              <option value="delivered">Delivered</option>
-                              <option value="cancelled">Cancelled</option>
-                              <option value="refunded">Refunded</option>
-                            </select>
+                            <div className="inline-flex flex-col gap-1.5 text-left text-[10px] w-36 bg-slate-950 p-2.5 rounded-xl border border-slate-900">
+                              <div className="flex justify-between items-center gap-2">
+                                <span className="text-slate-550 font-medium">Order:</span>
+                                <select
+                                  value={ord.orderStatus}
+                                  onChange={(e) => handleUpdateOrderStatus(ord.id, 'orderStatus', e.target.value)}
+                                  className="rounded bg-slate-900 border border-slate-800 text-[10px] text-slate-200 px-1 py-0.5"
+                                >
+                                  <option value="pending">Pending</option>
+                                  <option value="processing">Processing</option>
+                                  <option value="shipped">Shipped</option>
+                                  <option value="delivered">Delivered</option>
+                                  <option value="cancelled">Cancelled</option>
+                                  <option value="returned">Returned</option>
+                                </select>
+                              </div>
+                              <div className="flex justify-between items-center gap-2">
+                                <span className="text-slate-550 font-medium">Payment:</span>
+                                <select
+                                  value={ord.paymentStatus}
+                                  onChange={(e) => handleUpdateOrderStatus(ord.id, 'paymentStatus', e.target.value)}
+                                  className="rounded bg-slate-900 border border-slate-800 text-[10px] text-slate-200 px-1 py-0.5 animate-none"
+                                >
+                                  <option value="unpaid">Unpaid</option>
+                                  <option value="authorized">Authorized</option>
+                                  <option value="paid">Paid</option>
+                                  <option value="failed">Failed</option>
+                                  <option value="refunded">Refunded</option>
+                                  <option value="partially_refunded">Partially</option>
+                                </select>
+                              </div>
+                              <div className="flex justify-between items-center gap-2">
+                                <span className="text-slate-550 font-medium">Shipment:</span>
+                                <select
+                                  value={ord.shipmentStatus}
+                                  onChange={(e) => handleUpdateOrderStatus(ord.id, 'shipmentStatus', e.target.value)}
+                                  className="rounded bg-slate-900 border border-slate-800 text-[10px] text-slate-200 px-1 py-0.5"
+                                >
+                                  <option value="unfulfilled">Unfulfilled</option>
+                                  <option value="label_created">Label</option>
+                                  <option value="shipped">Shipped</option>
+                                  <option value="in_transit">In Transit</option>
+                                  <option value="delivered">Delivered</option>
+                                </select>
+                              </div>
+                            </div>
                           </td>
                         </tr>
                       ))}
