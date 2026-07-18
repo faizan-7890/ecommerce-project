@@ -1,25 +1,25 @@
-# ⚡ VELOCE - Production-Ready E-Commerce Application
+# ⚡ VELOCE - Full-Stack Premium Anime Apparel Store
 
-Veloce is a production-ready, full-stack E-Commerce platform built with a modern **Next.js 16 (App Router) + Tailwind CSS** frontend and an **Express + PostgreSQL (Prisma ORM)** backend. It incorporates secure session rotations, transaction row-level locking, segregated status models, Stripe Checkout gateway, verified buyer reviews, and docker configurations.
+Veloce is a production-ready, full-stack E-Commerce platform tailored for custom anime-inspired apparel designs. Built using **Next.js 16 (App Router) + Tailwind CSS** on the frontend, and a secure **Express + PostgreSQL (Prisma ORM)** backend, the platform incorporates transactional row-level locking, segregated status trackers, Razorpay Standard Checkout integration, and automated Jest test suites.
 
 ---
 
-## ✨ Core Features & Enhancements
+## ✨ Features Implemented
+
+### 🛍️ Customer Experience
+* **Anime Catalog**: Categorized filters supporting Anime-Inspired T-Shirts, Oversized T-Shirts, Japanese Streetwear, Hoodies, Accessories, and Limited Drops.
+* **Product Variants**: Size, color, and price options mapped to distinct SKUs and stock quantities.
+* **Address Book**: Add, edit, delete, and set default locations for multiple shipping/billing addresses (`/api/users/addresses`).
+* **Promo Code Engine**: Real-time validation checking min-order pricing, expirations, and usage limits (e.g., `WELCOME10` or `SAVE20`).
+* **Verified Customer Reviews**: Customers can submit rating stars (1-5) and comments only if they have a `delivered` order containing that item.
+* **Wishlist Registry**: Save items, check stock status, and transfer items directly to the shopping cart.
+* **Razorpay Checkout**: Seamless secure checkout popup supporting Cards, Netbanking, UPI, and Wallets.
 
 ### 🛡️ Security & Authentication
 * **Session Rotations**: Utilizes short-lived (15 min) Access Tokens in memory and secure, HttpOnly, SameSite `strict` cookies for revocable 7-day Refresh Tokens stored as SHA-256 hashes in PostgreSQL.
 * **Brute-Force Protection**: Endpoint rate-limiters protect authentication attempts.
 * **Password Reset Flow**: Email verification triggers and secure password reset tokens checking 1-hour expirations.
-* **Session Revocation**: Logging out revokes active session records in the database.
-* **CSRF & CORS Origins**: Strict CORS configurations locking access only to trusted domains (`process.env.FRONTEND_URL`).
-
-### 🛍️ Customer Experience
-* **Product Variants**: Dynamic size, color, and price options mapped to distinct SKUs and stock quantities.
-* **Address Book**: Add, edit, delete, and set default locations for multiple shipping/billing addresses (`/api/users/addresses`).
-* **Promo Code Engine**: Real-time validation checking min-order pricing, expirations, and usage limits (e.g., `WELCOME10` or `SAVE20`).
-* **Verified Customer Reviews**: Customers can submit rating stars (1-5) and comments only if they have a `delivered` order containing that item.
-* **Wishlist Registry**: Save items, check stock status, and transfer items directly to the shopping cart.
-* **Stripe Secure Checkout**: Complete secure element redirect to Stripe Checkout, avoiding card processing or storage inside our backend servers.
+* **CORS Allowed Origins**: Strict CORS configurations locking access only to trusted domains (`process.env.FRONTEND_URL`).
 
 ### 👑 Administrator Control Panel
 * **Filtered Analytics**: Sales metrics reports filterable by range types (Today, Last 7 Days, Last 30 Days, This Year, or Custom Ranges).
@@ -46,6 +46,8 @@ ecommerce-project/
 │   └── server.js             # Server startup script
 │
 └── frontend/                 # Next.js Web App Client
+    ├── public/
+    │   └── images/           # High-resolution seeded product images
     ├── src/
     │   ├── app/              # Next.js App Router (Marketplace, Profile, Wishlist, Checkout)
     │   ├── components/       # Premium UI components (Header, Footer, ProductCard)
@@ -86,7 +88,7 @@ node prisma/seed.js
 ---
 
 ### Step 2: Running Automated Tests
-Run integration test suites covering health checks, auth rotations, and transaction row locks:
+Run integration test suites covering health checks, auth rotations, Razorpay verification logic, and transaction row locks:
 ```bash
 cd backend
 npm run test
@@ -98,7 +100,7 @@ npm run test
 Start backend REST server:
 ```bash
 cd backend
-
+npm run dev
 ```
 * **API URL**: `http://localhost:5000`
 
@@ -179,10 +181,10 @@ npm run dev
 | **GET** | `/api/orders` | Private | Fetch user order logs |
 | **GET** | `/api/orders/:id` | Private | View specific order specifications |
 | **PUT** | `/api/orders/:id/cancel`| Private | Cancel pending order (restores variant stock, logs inventory change) |
-| **POST** | `/api/payments/create` | Private | Initialize Stripe Checkout session |
-| **POST** | `/api/payments/verify` | Private | Verify card payments authorization status |
-| **POST** | `/api/payments/webhook`| Public | Stripe-Signature checked webhook receiver (ignores duplicates) |
-| **POST** | `/api/payments/:id/refund`| Admin | Process Stripe Refund, restores variant items stock |
+| **POST** | `/api/payments/create-order` | Private | Initialize Razorpay checkout Order |
+| **POST** | `/api/payments/verify` | Private | Verify Razorpay payment signature |
+| **POST** | `/api/payments/webhook`| Public | Razorpay webhook signature verification receiver (ignores duplicates) |
+| **POST** | `/api/payments/:id/refund`| Admin | Process Razorpay Refund, restores variant items stock |
 
 ### Analytics & Reports
 | Method | Endpoint | Access | Description |
