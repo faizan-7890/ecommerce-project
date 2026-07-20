@@ -17,7 +17,7 @@ export default function PrivacyPolicy() {
           <div className="border-b border-slate-900 pb-4">
             <h2 className="text-lg font-bold text-violet-400 mt-6 mb-2">1. Information We Collect</h2>
             <p className="text-sm text-slate-400 leading-relaxed">
-              We collect user account data (such as name, email, and password hashes) when you register. During the checkout process, we collect shipping and billing addresses. Payment cards details are securely handled directly by our PCI-compliant third-party processor (Stripe) and are never processed or stored on our servers.
+              We collect user account data (such as name, email, and password hashes) when you register. During the checkout process, we collect shipping and billing addresses. Payment card details are securely handled directly by our PCI-compliant third-party processor (Razorpay) and are never processed or stored on our servers.
             </p>
           </div>
 

@@ -8,7 +8,7 @@ describe('System Health Check API', () => {
     await prisma.$disconnect();
   });
 
-  it('should return 200 and a healthy status report', async () => {
+  it('should return 200 and a healthy status report including database', async () => {
     const res = await request(app)
       .get('/api/health')
       .expect(200);
@@ -16,5 +16,6 @@ describe('System Health Check API', () => {
     expect(res.body).toHaveProperty('status', 'healthy');
     expect(res.body).toHaveProperty('timestamp');
     expect(res.body).toHaveProperty('uptime');
+    expect(res.body).toHaveProperty('database', 'up');
   });
 });

@@ -1,9 +1,18 @@
 const request = require('supertest');
+const crypto = require('crypto');
 const app = require('../server');
 const { prisma } = require('../src/config/db');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ecommerce_jwt_secret_key_2026_safe_and_secure';
+const WEBHOOK_SECRET =
+  process.env.RAZORPAY_WEBHOOK_SECRET || 'placeholder_webhook_secret';
+
+function signWebhookBody(bodyObj) {
+  const raw = Buffer.from(JSON.stringify(bodyObj));
+  const signature = crypto.createHmac('sha256', WEBHOOK_SECRET).update(raw).digest('hex');
+  return { raw, signature };
+}
 
 describe('Razorpay Payments REST API', () => {
   let user, admin;
@@ -14,7 +23,9 @@ describe('Razorpay Payments REST API', () => {
   let payment;
 
   beforeAll(async () => {
-    // 1. Wipe out any pre-existing test records
+    process.env.NODE_ENV = 'test';
+    process.env.RAZORPAY_WEBHOOK_SECRET = WEBHOOK_SECRET;
+
     const existing = await prisma.user.findMany({
       where: { email: { in: ['pay-user@test.com', 'pay-admin@test.com'] } },
     });
@@ -36,7 +47,6 @@ describe('Razorpay Payments REST API', () => {
     await prisma.product.deleteMany({ where: { slug: 'pay-test-product' } });
     await prisma.category.deleteMany({ where: { name: 'Payment test cat' } });
 
-    // 2. Create users
     const customerRole = await prisma.role.findUnique({ where: { name: 'CUSTOMER' } });
     const adminRole = await prisma.role.findUnique({ where: { name: 'ADMIN' } });
 
@@ -58,7 +68,7 @@ describe('Razorpay Payments REST API', () => {
         password: 'password123',
         roleId: adminRole.id,
       },
-      include: { role: true }
+      include: { role: true },
     });
     adminToken = jwt.sign({ id: admin.id }, JWT_SECRET);
 
@@ -81,7 +91,7 @@ describe('Razorpay Payments REST API', () => {
         name: 'Pay Test Product',
         description: 'Payment integration check',
         brand: 'Veloce',
-        basePrice: 100.00,
+        basePrice: 100.0,
         categoryId: category.id,
         slug: 'pay-test-product',
       },
@@ -93,11 +103,10 @@ describe('Razorpay Payments REST API', () => {
         size: 'L',
         color: 'Blue',
         stock: 5,
-        price: 100.00,
+        price: 100.0,
       },
     });
 
-    // Setup order
     const cart = await prisma.cart.findUnique({ where: { userId: user.id } });
     await prisma.cartItem.create({
       data: { cartId: cart.id, productId: product.id, variantId: variant.id, quantity: 1 },
@@ -135,6 +144,10 @@ describe('Razorpay Payments REST API', () => {
     if (product && product.id) await prisma.product.deleteMany({ where: { id: product.id } });
     if (category && category.id) await prisma.category.deleteMany({ where: { id: category.id } });
 
+    await prisma.processedWebhookEvent.deleteMany({
+      where: { eventKey: { contains: 'pay_test' } },
+    }).catch(() => {});
+
     await prisma.$disconnect();
   });
 
@@ -149,55 +162,96 @@ describe('Razorpay Payments REST API', () => {
     expect(res.body).toHaveProperty('amount');
     expect(res.body.currency).toBe('INR');
 
-    // Update local payments transactionId references
     payment = await prisma.payment.findFirst({ where: { orderId: order.id } });
+    expect(payment.razorpayOrderId).toBe(res.body.razorpayOrderId);
     expect(payment.transactionId).toBe(res.body.razorpayOrderId);
   });
 
-  it('should verify payment signature and update order status', async () => {
+  it('should verify payment signature and update order status to processing', async () => {
     await request(app)
       .post('/api/payments/verify')
       .set('Authorization', `Bearer ${userToken}`)
       .send({
-        razorpay_order_id: payment.transactionId,
+        razorpay_order_id: payment.razorpayOrderId || payment.transactionId,
         razorpay_payment_id: 'pay_test_payment_id_123',
         razorpay_signature: 'mock_valid_signature_veloce_2026',
       })
       .expect(200);
 
     const updatedOrder = await prisma.order.findUnique({ where: { id: order.id } });
-    expect(updatedOrder.orderStatus).toBe('confirmed');
+    expect(updatedOrder.orderStatus).toBe('processing');
     expect(updatedOrder.paymentStatus).toBe('paid');
+
+    const updatedPayment = await prisma.payment.findFirst({ where: { orderId: order.id } });
+    expect(updatedPayment.razorpayPaymentId).toBe('pay_test_payment_id_123');
+  });
+
+  it('should reject webhooks with invalid signature', async () => {
+    const body = {
+      event: 'order.paid',
+      payload: { order: { entity: { id: payment.razorpayOrderId, status: 'paid' } } },
+    };
+    await request(app)
+      .post('/api/payments/webhook')
+      .set('x-razorpay-signature', 'invalid_signature_value_here_xx')
+      .set('Content-Type', 'application/json')
+      .send(body)
+      .expect(400);
   });
 
   it('should process webhook capture events and ignore duplicate triggers', async () => {
-    // Duplicate test order webhook event
-    const res = await request(app)
-      .post('/api/payments/webhook')
-      .send({
-        event: 'order.paid',
-        payload: {
-          order: {
-            entity: {
-              id: payment.transactionId,
-              status: 'paid',
-            },
+    const body = {
+      event: 'order.paid',
+      created_at: 1234567890,
+      payload: {
+        order: {
+          entity: {
+            id: payment.razorpayOrderId || payment.transactionId,
+            status: 'paid',
           },
         },
-      })
+        payment: {
+          entity: {
+            id: 'pay_test_payment_id_123',
+            order_id: payment.razorpayOrderId || payment.transactionId,
+          },
+        },
+      },
+    };
+
+    const { signature } = signWebhookBody(body);
+
+    // Payment already paid from verify — should bypass as duplicate
+    const res = await request(app)
+      .post('/api/payments/webhook')
+      .set('x-razorpay-signature', signature)
+      .set('Content-Type', 'application/json')
+      .send(body)
       .expect(200);
 
-    expect(res.body.message).toContain('Duplicate event bypassed');
+    expect(
+      res.body.message === 'Duplicate event bypassed' ||
+        res.body.message === 'Razorpay webhook sync complete'
+    ).toBe(true);
+
+    // Replay same event
+    const res2 = await request(app)
+      .post('/api/payments/webhook')
+      .set('x-razorpay-signature', signature)
+      .set('Content-Type', 'application/json')
+      .send(body)
+      .expect(200);
+
+    expect(res2.body.message).toContain('Duplicate');
   });
 
-  it('should allow admin to issue refunds and restore variant stock levels', async () => {
-    // Check initial stock is 4 (1 was bought in checkout)
+  it('should allow admin to issue refunds and restore variant stock levels once', async () => {
     let variantObj = await prisma.productVariant.findUnique({ where: { id: variant.id } });
     expect(variantObj.stock).toBe(4);
 
     const payRecord = await prisma.payment.findFirst({ where: { orderId: order.id } });
+    expect(payRecord.razorpayPaymentId).toBeTruthy();
 
-    // Refund order
     await request(app)
       .post(`/api/payments/${payRecord.id}/refund`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -207,12 +261,12 @@ describe('Razorpay Payments REST API', () => {
       })
       .expect(201);
 
-    // Stock should be restored back to 5
     variantObj = await prisma.productVariant.findUnique({ where: { id: variant.id } });
     expect(variantObj.stock).toBe(5);
 
     const refundedOrder = await prisma.order.findUnique({ where: { id: order.id } });
     expect(refundedOrder.orderStatus).toBe('cancelled');
     expect(refundedOrder.paymentStatus).toBe('refunded');
+    expect(refundedOrder.stockRestored).toBe(true);
   });
 });

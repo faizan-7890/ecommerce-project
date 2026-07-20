@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { api } from '@/lib/api';
-import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
+import { formatCurrency } from '@/lib/currency';
 
 interface WishlistItem {
   id: number;
@@ -26,7 +26,6 @@ interface WishlistItem {
 
 export default function WishlistPage() {
   const { user } = useAuth();
-  const { addToCart } = useCart();
   const router = useRouter();
 
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
@@ -63,21 +62,9 @@ export default function WishlistPage() {
 
   const handleMoveToCart = async (item: WishlistItem) => {
     const product = item.product;
-
-    // If product has variants, direct user to options selection on detail page
-    if (product.variants && product.variants.length > 0) {
-      router.push(`/products/${product.id}`);
-      return;
-    }
-
-    try {
-      await addToCart(product.id, null, 1);
-      // Automatically remove from wishlist on successful cart transfer
-      await handleRemoveFromWishlist(product.id);
-      alert(`${product.name} moved to cart!`);
-    } catch (err: any) {
-      alert(err.message || 'Failed to move product to cart');
-    }
+    // Always route to product page for variant selection (or confirm single SKU)
+    // Do not pretend to move an unselected variant into the cart.
+    router.push(`/products/${product.id}`);
   };
 
   if (!user) {
@@ -116,9 +103,11 @@ export default function WishlistPage() {
                   ? prod.images[0].url
                   : 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=400&auto=format&fit=crop';
 
-                const totalStock = prod.variants && prod.variants.length > 0
-                  ? prod.variants.reduce((acc, v) => acc + v.stock, 0)
-                  : 99; // Mock stock if base only
+                // Inventory is held on variants only — no mock stock fallback
+                const totalStock =
+                  prod.variants && prod.variants.length > 0
+                    ? prod.variants.reduce((acc, v) => acc + v.stock, 0)
+                    : 0;
 
                 return (
                   <div
@@ -154,11 +143,11 @@ export default function WishlistPage() {
                         <div className="mt-3 flex items-center gap-2">
                           {discount > 0 ? (
                             <>
-                              <span className="text-sm font-extrabold text-white">${finalPrice.toFixed(2)}</span>
-                              <span className="text-xs text-slate-500 line-through">${originalPrice.toFixed(2)}</span>
+                              <span className="text-sm font-extrabold text-white">{formatCurrency(finalPrice)}</span>
+                              <span className="text-xs text-slate-500 line-through">{formatCurrency(originalPrice)}</span>
                             </>
                           ) : (
-                            <span className="text-sm font-bold text-white">${originalPrice.toFixed(2)}</span>
+                            <span className="text-sm font-bold text-white">{formatCurrency(originalPrice)}</span>
                           )}
                         </div>
                       </div>

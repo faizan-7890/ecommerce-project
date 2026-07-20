@@ -60,13 +60,16 @@ export default function ProductDetailPage() {
       const reviewsData = await api.get(`/reviews/${data.id}`);
       setReviews(reviewsData);
 
-      // Verify if current user is a verified buyer
+      // Verify if current user is a verified buyer (backend field is orderStatus)
       if (user) {
-        const userOrders = await api.get('/orders');
+        const userOrders = (await api.get('/orders')) as Array<{
+          orderStatus: string;
+          items: Array<{ productId: number }>;
+        }>;
         const hasDeliveredItem = userOrders.some(
-          (o: any) =>
-            o.status === 'delivered' &&
-            o.items.some((item: any) => item.productId === data.id)
+          (o) =>
+            o.orderStatus === 'delivered' &&
+            o.items.some((item) => item.productId === data.id)
         );
         setIsVerifiedBuyer(hasDeliveredItem);
       }

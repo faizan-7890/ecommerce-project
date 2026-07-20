@@ -24,14 +24,14 @@ export default function TermsAndConditions() {
           <div className="border-b border-slate-900 pb-4">
             <h2 className="text-lg font-bold text-violet-400 mt-6 mb-2">2. Pricing, Shipping, and Taxes</h2>
             <p className="text-sm text-slate-400 leading-relaxed">
-              We apply an 8% sales tax calculation on taxable subtotals (subtotal less active discount values). Shipping charges are free for all orders above $100.00, otherwise a flat rate of $10.00 is applied. Discounts are validated in real-time and subject to min-order validations and usage thresholds.
+              All prices are in Indian Rupees (INR). We apply an 8% sales tax calculation on taxable subtotals (subtotal less active discount values). Shipping charges are free for all orders above ₹100.00, otherwise a flat rate of ₹10.00 is applied. Discounts are validated in real-time and subject to min-order validations and usage thresholds.
             </p>
           </div>
 
           <div className="border-b border-slate-900 pb-4">
             <h2 className="text-lg font-bold text-violet-400 mt-6 mb-2">3. Refund Policies</h2>
             <p className="text-sm text-slate-400 leading-relaxed">
-              Refunds are processed to the original Stripe transaction reference. A refund action can only be initiated on paid transactions. Partial refunds are supported and will decrement order statuses dynamically. Upon completing a refund, items are returned to stock.
+              Refunds are processed to the original Razorpay payment reference. A refund action can only be initiated on paid transactions. Partial refunds are supported and update payment status dynamically. Upon completing a full refund, items are returned to stock once.
             </p>
           </div>
 

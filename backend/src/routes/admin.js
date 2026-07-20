@@ -2,6 +2,13 @@ const express = require('express');
 const router = express.Router();
 const { prisma } = require('../config/db');
 const { protect, isAdmin } = require('../middleware/auth');
+const {
+  isValidOrderStatus,
+  isValidPaymentStatus,
+  isValidShipmentStatus,
+  isValidRefundStatus,
+} = require('../services/orderState');
+const { restoreOrderStock } = require('../services/inventory');
 
 // Secure all admin routes
 router.use(protect, isAdmin);
@@ -42,22 +49,17 @@ router.put('/orders/:id/status', async (req, res) => {
     return res.status(400).json({ message: 'Invalid order ID' });
   }
 
-  // Validate inputs if provided
-  const validOrderStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'];
-  const validPaymentStatuses = ['unpaid', 'authorized', 'paid', 'failed', 'refunded', 'partially_refunded'];
-  const validShipmentStatuses = ['unfulfilled', 'label_created', 'shipped', 'in_transit', 'delivered'];
-  const validRefundStatuses = ['none', 'pending', 'completed', 'failed'];
-
-  if (orderStatus && !validOrderStatuses.includes(orderStatus)) {
+  // Reject undocumented "confirmed" and any other non-canonical status
+  if (orderStatus && !isValidOrderStatus(orderStatus)) {
     return res.status(400).json({ message: `Invalid orderStatus: ${orderStatus}` });
   }
-  if (paymentStatus && !validPaymentStatuses.includes(paymentStatus)) {
+  if (paymentStatus && !isValidPaymentStatus(paymentStatus)) {
     return res.status(400).json({ message: `Invalid paymentStatus: ${paymentStatus}` });
   }
-  if (shipmentStatus && !validShipmentStatuses.includes(shipmentStatus)) {
+  if (shipmentStatus && !isValidShipmentStatus(shipmentStatus)) {
     return res.status(400).json({ message: `Invalid shipmentStatus: ${shipmentStatus}` });
   }
-  if (refundStatus && !validRefundStatuses.includes(refundStatus)) {
+  if (refundStatus && !isValidRefundStatus(refundStatus)) {
     return res.status(400).json({ message: `Invalid refundStatus: ${refundStatus}` });
   }
 
@@ -71,7 +73,6 @@ router.put('/orders/:id/status', async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // Process status updates within a transaction
     const updated = await prisma.$transaction(async (tx) => {
       const dataToUpdate = {};
       if (orderStatus) dataToUpdate.orderStatus = orderStatus;
@@ -79,59 +80,30 @@ router.put('/orders/:id/status', async (req, res) => {
       if (shipmentStatus) dataToUpdate.shipmentStatus = shipmentStatus;
       if (refundStatus) dataToUpdate.refundStatus = refundStatus;
 
-      // 1. Update statuses
       const updatedOrder = await tx.order.update({
         where: { id },
         data: dataToUpdate,
       });
 
-      // 2. Enforce inventory return if status transitions to cancelled/refunded and wasn't before
-      // Guard: Ensure previous orderStatus was NOT cancelled/refunded to avoid double restoration
-      const isTransitioningToCancelled = (orderStatus === 'cancelled' || orderStatus === 'refunded' || refundStatus === 'completed') &&
-                                         (order.orderStatus !== 'cancelled' && order.orderStatus !== 'refunded');
+      // Restore stock once when transitioning to cancelled (or refund completed)
+      const isTransitioningToCancelled =
+        (orderStatus === 'cancelled' || refundStatus === 'completed') &&
+        order.orderStatus !== 'cancelled' &&
+        order.orderStatus !== 'returned' &&
+        !order.stockRestored;
 
       if (isTransitioningToCancelled) {
-        for (const item of order.items) {
-          if (item.variantId) {
-            // Lock row
-            const lockedVariants = await tx.$queryRaw`
-              SELECT id, stock FROM "ProductVariant"
-              WHERE id = ${item.variantId}
-              FOR UPDATE
-            `;
-            const variant = lockedVariants[0];
+        const reason = refundStatus === 'completed' ? 'refund' : 'cancellation';
+        await restoreOrderStock(tx, order, reason, `admin_${req.user.id}`);
 
-            const newQty = (variant?.stock || 0) + item.quantity;
-
-            await tx.productVariant.update({
-              where: { id: item.variantId },
-              data: { stock: { increment: item.quantity } },
-            });
-
-            // Log stock restoration
-            await tx.inventoryLog.create({
-              data: {
-                productId: item.productId,
-                variantId: item.variantId,
-                previousQuantity: variant?.stock || 0,
-                newQuantity: newQty,
-                changeAmount: item.quantity,
-                reason: orderStatus === 'refunded' || refundStatus === 'completed' ? 'refund' : 'cancellation',
-                orderId: id,
-                updatedBy: `admin_${req.user.id}`,
-              },
-            });
-          }
-        }
-
-        // De-authorize payment status in payments table if cancelled
         await tx.payment.updateMany({
           where: { orderId: id },
-          data: { status: orderStatus === 'refunded' || refundStatus === 'completed' ? 'refunded' : 'failed' },
+          data: {
+            status: refundStatus === 'completed' ? 'refunded' : 'failed',
+          },
         });
       }
 
-      // 3. Create AuditLog entry for admin actions
       const changesString = Object.entries(dataToUpdate)
         .map(([k, v]) => `${k} -> '${v}'`)
         .join(', ');

@@ -3,6 +3,9 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
+const { assertPaymentConfigForEnvironment } = require('./src/config/payments');
+const { prisma } = require('./src/config/db');
+
 const authRoutes = require('./src/routes/auth');
 const userRoutes = require('./src/routes/users');
 const productRoutes = require('./src/routes/products');
@@ -15,39 +18,61 @@ const reviewRoutes = require('./src/routes/reviews');
 const couponRoutes = require('./src/routes/coupons');
 const paymentRoutes = require('./src/routes/payments');
 
+// Fail fast in production if payment secrets are missing/placeholder
+try {
+  assertPaymentConfigForEnvironment();
+} catch (err) {
+  console.error(err.message);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+}
+
 const app = express();
 
-// Configure Middleware
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Idempotency-Key'],
   credentials: true,
 }));
+
 app.use(express.json({
   verify: (req, res, buf) => {
-    if (req.originalUrl.startsWith('/api/payments/webhook')) {
+    if (req.originalUrl && req.originalUrl.startsWith('/api/payments/webhook')) {
       req.rawBody = buf;
     }
-  }
+  },
 }));
 app.use(cookieParser());
 
-// Main Root Route
 app.get('/', (req, res) => {
   res.json({ message: 'E-Commerce REST API is running...' });
 });
 
-// System Health Check
-app.get('/api/health', (req, res) => {
-  res.status(200).json({
+// System Health Check — includes PostgreSQL connectivity
+app.get('/api/health', async (req, res) => {
+  const payload = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-  });
+    database: 'up',
+  };
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json(payload);
+  } catch (err) {
+    console.error('Health check DB failure:', err.message);
+    res.status(503).json({
+      ...payload,
+      status: 'unhealthy',
+      database: 'down',
+      message: 'PostgreSQL is unavailable',
+    });
+  }
 });
 
-// Register API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
@@ -60,12 +85,10 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/payments', paymentRoutes);
 
-// Page Not Found Handler
-app.use((req, res, next) => {
+app.use((req, res) => {
   res.status(404).json({ message: `Route not found - ${req.originalUrl}` });
 });
 
-// Global Error Handler Middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled Server Error:', err.stack || err);
   const statusCode = res.statusCode === 200 ? 500 : res.statusCode;

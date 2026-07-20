@@ -1,7 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api } from '@/lib/api';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { api, setAccessToken } from '@/lib/api';
 
 interface User {
   id: number;
@@ -9,7 +9,6 @@ interface User {
   email: string;
   role: string;
   emailVerified: boolean;
-  token?: string;
 }
 
 interface AuthContextType {
@@ -27,34 +26,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshUser = async () => {
+  /**
+   * Restore session via HttpOnly refresh cookie when no in-memory access token.
+   * Access tokens are never stored in localStorage.
+   */
+  const refreshUser = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        const userData = await api.get('/users/profile');
-        setUser(userData);
-      } else {
-        setUser(null);
-      }
-    } catch (err) {
-      console.error('Failed to load user profile on startup', err);
-      // Clean tokens locally if API fails with unauthorized
-      localStorage.removeItem('token');
+      const data = (await api.post('/auth/refresh', {})) as {
+        token: string;
+        user: User;
+      };
+      setAccessToken(data.token);
+      setUser(data.user);
+    } catch {
+      setAccessToken(null);
       setUser(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshUser();
-  }, []);
+  }, [refreshUser]);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      const data = await api.post('/auth/login', { email, password });
-      localStorage.setItem('token', data.token);
+      const data = (await api.post('/auth/login', { email, password })) as User & {
+        token: string;
+      };
+      setAccessToken(data.token);
       setUser({
         id: data.id,
         name: data.name,
@@ -73,8 +75,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (name: string, email: string, password: string) => {
     setLoading(true);
     try {
-      const data = await api.post('/auth/register', { name, email, password });
-      localStorage.setItem('token', data.token);
+      const data = (await api.post('/auth/register', { name, email, password })) as User & {
+        token: string;
+      };
+      setAccessToken(data.token);
       setUser({
         id: data.id,
         name: data.name,
@@ -97,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('API logout error:', err);
     } finally {
-      localStorage.removeItem('token');
+      setAccessToken(null);
       setUser(null);
       setLoading(false);
     }

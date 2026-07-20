@@ -6,38 +6,51 @@ const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const { prisma } = require('../config/db');
 const { protect } = require('../middleware/auth');
+const { hashToken } = require('../utils/crypto');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ecommerce_jwt_secret_key_2026_safe_and_secure';
-
-// Helper: SHA-256 token hashing
-const hashToken = (token) => {
-  return crypto.createHash('sha256').update(token).digest('hex');
-};
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const PUBLIC_RESET_MESSAGE =
+  'If this email exists in our records, a reset link will be sent.';
 
 // Rate limiter for authentication routes
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 50,
   message: { message: 'Too many auth requests from this IP, please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// Helper: Generate short-lived Access Token
+// Stricter limiter for password-reset endpoints
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: 'Too many password reset attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const generateAccessToken = (id) => {
   return jwt.sign({ id }, JWT_SECRET, { expiresIn: '15m' });
 };
 
-// Helper: Generate, hash, and set a new rotated Refresh Token cookie
+const cookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  // Set COOKIE_DOMAIN in multi-subdomain deployments, e.g. ".veloce.example"
+  ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
+});
+
 const generateAndSetRotatedRefreshToken = async (res, userId, oldTokenToRevoke = null) => {
-  // Generate a random high-entropy token string
   const plainToken = crypto.randomBytes(40).toString('hex');
   const hashedToken = hashToken(plainToken);
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiration
+  expiresAt.setDate(expiresAt.getDate() + 7);
 
   await prisma.$transaction(async (tx) => {
-    // 1. Revoke the old token if provided (Rotation logic)
     if (oldTokenToRevoke) {
       const hashedOld = hashToken(oldTokenToRevoke);
       await tx.refreshToken.updateMany({
@@ -46,7 +59,6 @@ const generateAndSetRotatedRefreshToken = async (res, userId, oldTokenToRevoke =
       });
     }
 
-    // 2. Create the new hashed token record
     await tx.refreshToken.create({
       data: {
         token: hashedToken,
@@ -56,14 +68,7 @@ const generateAndSetRotatedRefreshToken = async (res, userId, oldTokenToRevoke =
     });
   });
 
-  // Set rotated token as HttpOnly secure cookie
-  res.cookie('refreshToken', plainToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // true in prod, false in local dev HTTP
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
-
+  res.cookie('refreshToken', plainToken, cookieOptions());
   return plainToken;
 };
 
@@ -171,21 +176,16 @@ router.post('/refresh', async (req, res) => {
   try {
     const hashed = hashToken(refreshToken);
 
-    // Query token record by SHA-255 hash
     const dbToken = await prisma.refreshToken.findUnique({
       where: { token: hashed },
       include: { user: { include: { role: true } } },
     });
 
-    // Check invalid, revoked, or expired states
     if (!dbToken || dbToken.revoked || dbToken.expiresAt < new Date()) {
       return res.status(401).json({ message: 'Invalid, revoked, or expired refresh token' });
     }
 
-    // ROTATION: generate a new refresh token, and revoke this old one
     await generateAndSetRotatedRefreshToken(res, dbToken.userId, refreshToken);
-    
-    // Issue a new access token
     const newAccessToken = generateAccessToken(dbToken.userId);
 
     res.json({
@@ -226,15 +226,11 @@ router.post('/logout', async (req, res) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
+    ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
   });
 
   res.json({ message: 'Successfully logged out' });
 });
-
-// @desc    Change password
-// @route   PUT /api/users/password
-// @access  Private (Invoked in users router, but we revoke refresh tokens there)
-// (Kept in users.js for routing consistency, refresh tokens revocation checked on hashed tokens there)
 
 // @desc    Simulate email verification trigger
 // @route   POST /api/auth/verify-email
@@ -252,10 +248,10 @@ router.post('/verify-email', protect, async (req, res) => {
   }
 });
 
-// @desc    Password reset flow - simulate forgot email token
+// @desc    Request password reset — always same public message; stores hashed one-time token
 // @route   POST /api/auth/forgot-password
 // @access  Public
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email) {
     return res.status(400).json({ message: 'Please provide email address' });
@@ -263,54 +259,88 @@ router.post('/forgot-password', async (req, res) => {
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return res.json({ message: 'If this email exists in our records, a reset link will be sent.' });
+
+    // Always return the same message for known and unknown emails
+    if (user) {
+      const plainToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = hashToken(plainToken);
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      // Invalidate prior unused tokens for this user
+      await prisma.passwordResetToken.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+
+      await prisma.passwordResetToken.create({
+        data: {
+          userId: user.id,
+          tokenHash,
+          expiresAt,
+        },
+      });
+
+      // Simulate email delivery (never return the token in the API response)
+      console.log(
+        `[Email Simulation] Reset password URL: ${FRONTEND_URL}/reset-password?token=${plainToken}`
+      );
     }
 
-    // Token expires in 1 hour
-    const resetToken = jwt.sign({ userId: user.id, type: 'reset' }, JWT_SECRET, { expiresIn: '1h' });
-    console.log(`[Email Simulation] Reset password URL: http://localhost:3000/reset-password?token=${resetToken}`);
-
-    res.json({
-      message: 'If this email exists in our records, a reset link will be sent.',
-      debugToken: resetToken,
-    });
+    res.json({ message: PUBLIC_RESET_MESSAGE });
   } catch (err) {
     console.error('Forgot password error:', err);
     res.status(500).json({ message: 'Server error triggering password reset' });
   }
 });
 
-// @desc    Password reset flow - apply reset using token
+// @desc    Apply password reset using one-time hashed DB token
 // @route   POST /api/auth/reset-password
 // @access  Public
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', passwordResetLimiter, async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) {
     return res.status(400).json({ message: 'Please provide token and new password' });
   }
 
+  if (password.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+  }
+
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    
-    // Double check that it's a reset token type
-    if (decoded.type !== 'reset') {
-      return res.status(400).json({ message: 'Invalid token type' });
+    const tokenHash = hashToken(token);
+    const resetRecord = await prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+    });
+
+    if (!resetRecord) {
+      return res.status(400).json({ message: 'Invalid or expired password reset token' });
+    }
+
+    if (resetRecord.usedAt) {
+      return res.status(400).json({ message: 'This password reset token has already been used' });
+    }
+
+    if (resetRecord.expiresAt < new Date()) {
+      return res.status(400).json({ message: 'Invalid or expired password reset token' });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     await prisma.$transaction(async (tx) => {
-      // 1. Update password
       await tx.user.update({
-        where: { id: decoded.userId },
+        where: { id: resetRecord.userId },
         data: { password: hashedPassword },
       });
 
-      // 2. Revoke all refresh tokens for this user for security
+      await tx.passwordResetToken.update({
+        where: { id: resetRecord.id },
+        data: { usedAt: new Date() },
+      });
+
+      // Revoke all refresh sessions after password reset
       await tx.refreshToken.updateMany({
-        where: { userId: decoded.userId },
+        where: { userId: resetRecord.userId },
         data: { revoked: true },
       });
     });

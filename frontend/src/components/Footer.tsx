@@ -9,8 +9,8 @@ export default function Footer() {
           <p>© {new Date().getFullYear()} VELOCE. All rights reserved.</p>
           <div className="flex gap-6">
             <Link href="/products" className="hover:text-slate-300 transition-colors">Shop</Link>
-            <a href="#" className="hover:text-slate-300 transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-slate-300 transition-colors">Terms of Service</a>
+            <Link href="/privacy-policy" className="hover:text-slate-300 transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-slate-300 transition-colors">Terms of Service</Link>
           </div>
         </div>
       </div>

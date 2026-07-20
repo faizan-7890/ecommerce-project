@@ -2,8 +2,11 @@ const express = require('express');
 const router = express.Router();
 const { prisma } = require('../config/db');
 const { protect } = require('../middleware/auth');
+const { restoreOrderStock, decrementVariantStock } = require('../services/inventory');
 
-// Helper: Generate unique random order number
+// Unpaid card checkouts expire after this window so stock is not held forever
+const ORDER_EXPIRY_MINUTES = parseInt(process.env.ORDER_EXPIRY_MINUTES || '30', 10);
+
 const generateOrderNumber = () => {
   return `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 };
@@ -15,22 +18,26 @@ router.post('/', protect, async (req, res) => {
   const { shippingAddressId, billingAddressId, couponCode, paymentMethod = 'cod' } = req.body;
   const idempotencyKey = req.headers['x-idempotency-key'];
 
-  const shipId = parseInt(shippingAddressId);
-  const billId = billingAddressId ? parseInt(billingAddressId) : null;
+  const shipId = parseInt(shippingAddressId, 10);
+  const billId = billingAddressId ? parseInt(billingAddressId, 10) : null;
 
-  if (isNaN(shipId)) {
+  if (Number.isNaN(shipId)) {
     return res.status(400).json({ message: 'shippingAddressId is required' });
   }
 
   try {
-    // 1. Enforce Idempotency check to reject duplicate checkout submissions
+    // 1. Idempotency scoped to the authenticated user
     if (idempotencyKey) {
       const existingOrder = await prisma.order.findUnique({
         where: { idempotencyKey },
         include: { items: true, payments: true },
       });
       if (existingOrder) {
-        console.log(`[Idempotency Key Triggered] Order already processed for key: ${idempotencyKey}`);
+        if (existingOrder.userId !== req.user.id) {
+          return res.status(409).json({
+            message: 'Idempotency key conflict: key already used by another account',
+          });
+        }
         return res.status(200).json(existingOrder);
       }
     }
@@ -49,7 +56,6 @@ router.post('/', protect, async (req, res) => {
       }
     }
 
-    // Format address snapshots
     const formatAddressSnapshot = (addr) => ({
       fullName: addr.fullName,
       phoneNumber: addr.phoneNumber,
@@ -85,9 +91,10 @@ router.post('/', protect, async (req, res) => {
     // Calculate subtotal
     let subtotal = 0;
     for (const item of cart.items) {
-      const basePrice = item.variant && item.variant.price !== null
-        ? parseFloat(item.variant.price)
-        : parseFloat(item.product.basePrice);
+      const basePrice =
+        item.variant && item.variant.price !== null
+          ? parseFloat(item.variant.price)
+          : parseFloat(item.product.basePrice);
 
       const flatDiscount = parseFloat(item.product.discountPrice || 0);
       let finalPrice = basePrice - flatDiscount;
@@ -96,91 +103,91 @@ router.post('/', protect, async (req, res) => {
       subtotal += finalPrice * item.quantity;
     }
 
-    // 4. Process Coupon Discount with race condition validation
-    let discountAmount = 0;
+    // 4. Pre-load coupon (usage re-validated under lock inside transaction)
     let coupon = null;
-
     if (couponCode) {
       coupon = await prisma.coupon.findUnique({
         where: { code: couponCode.toUpperCase() },
       });
-
-      if (coupon && coupon.isActive) {
-        const meetsMinAmount = subtotal >= parseFloat(coupon.minOrderAmount);
-        const notExpired = !coupon.expirationDate || new Date(coupon.expirationDate) > new Date();
-
-        let underUsageLimit = true;
-        if (coupon.usageLimit !== null) {
-          const usagesCount = await prisma.couponUsage.count({ where: { couponId: coupon.id } });
-          underUsageLimit = usagesCount < coupon.usageLimit;
-        }
-
-        if (meetsMinAmount && notExpired && underUsageLimit) {
-          const val = parseFloat(coupon.discountValue);
-          if (coupon.discountType === 'percentage') {
-            discountAmount = subtotal * (val / 100);
-          } else {
-            discountAmount = val;
-          }
-          if (discountAmount > subtotal) discountAmount = subtotal;
-        }
-      }
     }
 
-    // 5. Calculate Tax and Shipping fees
-    const taxableSubtotal = subtotal - discountAmount;
-    const taxAmount = taxableSubtotal * 0.08; // 8% sales tax
-    
-    // Free shipping for orders above $100.00, otherwise flat $10.00
-    const shippingAmount = taxableSubtotal >= 100.00 ? 0.00 : 10.00;
-    const finalTotal = taxableSubtotal + taxAmount + shippingAmount;
-
-    // 6. Execute Concurrency-Safe Postgres Transaction
+    // 5. Execute Concurrency-Safe Postgres Transaction
     const order = await prisma.$transaction(async (tx) => {
-      
+      // Re-check idempotency inside transaction (race protection)
+      if (idempotencyKey) {
+        const existing = await tx.order.findUnique({
+          where: { idempotencyKey },
+          include: { items: true, payments: true },
+        });
+        if (existing) {
+          if (existing.userId !== req.user.id) {
+            throw new Error('Idempotency key conflict: key already used by another account');
+          }
+          return existing;
+        }
+      }
+
       // Step A: Lock rows and verify stock levels
       for (const item of cart.items) {
         if (item.variantId) {
-          // PostgreSQL Row-level Lock (FOR UPDATE)
-          // Prevents concurrent checkout threads from accessing this row until transaction commits
-          const lockedVariants = await tx.$queryRaw`
-            SELECT id, stock FROM "ProductVariant"
-            WHERE id = ${item.variantId}
-            FOR UPDATE
-          `;
-
-          const variant = lockedVariants[0];
-
-          if (!variant || variant.stock < item.quantity) {
-            throw new Error(`Variant selection of ${item.product.name} is out of stock or lacks required quantity.`);
-          }
-
-          // Decrement stock safe inside transaction
-          const updatedVariant = await tx.productVariant.update({
-            where: { id: item.variantId },
-            data: {
-              stock: {
-                decrement: item.quantity,
-              },
-            },
-          });
-
-          // Log inventory adjustment
-          await tx.inventoryLog.create({
-            data: {
-              productId: item.productId,
-              variantId: item.variantId,
-              previousQuantity: variant.stock,
-              newQuantity: updatedVariant.stock,
-              changeAmount: -item.quantity,
-              reason: 'checkout',
-              updatedBy: `user_${req.user.id}`,
-            },
+          await decrementVariantStock(tx, {
+            productId: item.productId,
+            variantId: item.variantId,
+            quantity: item.quantity,
+            userId: req.user.id,
           });
         }
       }
 
-      // Step B: Create Order record
+      // Step B: Atomic coupon reservation under row lock
+      let discountAmount = 0;
+      let appliedCoupon = null;
+
+      if (coupon && coupon.isActive) {
+        const lockedCoupons = await tx.$queryRaw`
+          SELECT id, "discountType", "discountValue", "minOrderAmount", "usageLimit", "expirationDate", "isActive"
+          FROM "Coupon"
+          WHERE id = ${coupon.id}
+          FOR UPDATE
+        `;
+        const locked = lockedCoupons[0];
+        if (locked && locked.isActive) {
+          const meetsMinAmount = subtotal >= parseFloat(locked.minOrderAmount);
+          const notExpired =
+            !locked.expirationDate || new Date(locked.expirationDate) > new Date();
+
+          let underUsageLimit = true;
+          if (locked.usageLimit !== null) {
+            const usagesCount = await tx.couponUsage.count({ where: { couponId: locked.id } });
+            underUsageLimit = usagesCount < locked.usageLimit;
+          }
+
+          if (meetsMinAmount && notExpired && underUsageLimit) {
+            const val = parseFloat(locked.discountValue);
+            if (locked.discountType === 'percentage') {
+              discountAmount = subtotal * (val / 100);
+            } else {
+              discountAmount = val;
+            }
+            if (discountAmount > subtotal) discountAmount = subtotal;
+            appliedCoupon = locked;
+          }
+        }
+      }
+
+      const taxableSubtotal = subtotal - discountAmount;
+      const taxAmount = taxableSubtotal * 0.08;
+      // Free shipping for orders above ₹100, otherwise flat ₹10 (INR)
+      const shippingAmount = taxableSubtotal >= 100.0 ? 0.0 : 10.0;
+      const finalTotal = taxableSubtotal + taxAmount + shippingAmount;
+
+      // Card checkouts get an expiry window for unpaid inventory reservation
+      const expiresAt =
+        paymentMethod !== 'cod'
+          ? new Date(Date.now() + ORDER_EXPIRY_MINUTES * 60 * 1000)
+          : null;
+
+      // Step C: Create Order record
       const orderNumber = generateOrderNumber();
       const newOrder = await tx.order.create({
         data: {
@@ -195,16 +202,19 @@ router.post('/', protect, async (req, res) => {
           billingAddressSnapshot: billingSnapshot,
           shippingAddressId: shipId,
           billingAddressId: billId || shipId,
-          orderStatus: paymentMethod === 'cod' ? 'pending' : 'pending',
-          paymentStatus: paymentMethod === 'cod' ? 'unpaid' : 'unpaid',
+          orderStatus: 'pending',
+          paymentStatus: 'unpaid',
           shipmentStatus: 'unfulfilled',
           refundStatus: 'none',
-          idempotencyKey,
+          stockRestored: false,
+          expiresAt,
+          idempotencyKey: idempotencyKey || null,
           items: {
             create: cart.items.map((item) => {
-              const basePrice = item.variant && item.variant.price !== null
-                ? parseFloat(item.variant.price)
-                : parseFloat(item.product.basePrice);
+              const basePrice =
+                item.variant && item.variant.price !== null
+                  ? parseFloat(item.variant.price)
+                  : parseFloat(item.product.basePrice);
               const flatDiscount = parseFloat(item.product.discountPrice || 0);
               let finalUnitPrice = basePrice - flatDiscount;
               if (finalUnitPrice < 0) finalUnitPrice = 0;
@@ -226,7 +236,7 @@ router.post('/', protect, async (req, res) => {
         },
       });
 
-      // Step C: Update InventoryLogs with order link
+      // Step D: Link inventory logs to order
       await tx.inventoryLog.updateMany({
         where: {
           reason: 'checkout',
@@ -238,23 +248,23 @@ router.post('/', protect, async (req, res) => {
         },
       });
 
-      // Step D: Register Coupon usage
-      if (coupon && discountAmount > 0) {
+      // Step E: Register Coupon usage (inside same locked transaction)
+      if (appliedCoupon && discountAmount > 0) {
         await tx.couponUsage.create({
           data: {
-            couponId: coupon.id,
+            couponId: appliedCoupon.id,
             userId: req.user.id,
             orderId: newOrder.id,
           },
         });
       }
 
-      // Step E: Clear cart
+      // Step F: Clear cart
       await tx.cartItem.deleteMany({
         where: { cartId: cart.id },
       });
 
-      // Step F: Create Payment pending block
+      // Step G: Create Payment pending block
       await tx.payment.create({
         data: {
           orderId: newOrder.id,
@@ -270,6 +280,19 @@ router.post('/', protect, async (req, res) => {
     res.status(201).json(order);
   } catch (error) {
     console.error('Checkout error:', error);
+    // Unique idempotency race
+    if (error.code === 'P2002' && idempotencyKey) {
+      const existing = await prisma.order.findUnique({
+        where: { idempotencyKey },
+        include: { items: true, payments: true },
+      });
+      if (existing && existing.userId === req.user.id) {
+        return res.status(200).json(existing);
+      }
+      return res.status(409).json({
+        message: 'Idempotency key conflict: key already used by another account',
+      });
+    }
     res.status(400).json({ message: error.message || 'Server error during checkout' });
   }
 });
@@ -304,8 +327,8 @@ router.get('/', protect, async (req, res) => {
 // @route   GET /api/orders/:id
 // @access  Private
 router.get('/:id', protect, async (req, res) => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
     return res.status(400).json({ message: 'Invalid order ID' });
   }
 
@@ -339,12 +362,12 @@ router.get('/:id', protect, async (req, res) => {
   }
 });
 
-// @desc    Cancel order (Pending state only, double restorations protection)
+// @desc    Cancel order (Pending state only; stock restored at most once)
 // @route   PUT /api/orders/:id/cancel
 // @access  Private
 router.put('/:id/cancel', protect, async (req, res) => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
     return res.status(400).json({ message: 'Invalid order ID' });
   }
 
@@ -362,19 +385,33 @@ router.put('/:id/cancel', protect, async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized' });
     }
 
-    // Cancellation check: pending order status only
+    if (order.orderStatus === 'cancelled') {
+      return res.status(400).json({ message: 'This order has already been cancelled.' });
+    }
+
+    // Cancellation: pending unpaid only (paid orders need refund flow)
     if (order.orderStatus !== 'pending') {
-      return res.status(400).json({ message: `Cannot cancel orders with status '${order.orderStatus}'` });
+      return res.status(400).json({
+        message: `Cannot cancel orders with status '${order.orderStatus}'`,
+      });
     }
 
-    // Double restoration guard: check if already cancelled or refunded
-    if (order.orderStatus === 'cancelled' || order.orderStatus === 'refunded') {
-      return res.status(400).json({ message: 'This order has already been cancelled and stock has been restored.' });
+    if (order.paymentStatus === 'paid') {
+      return res.status(400).json({
+        message: 'Paid orders cannot be cancelled here; request a refund instead.',
+      });
     }
 
-    // Restore stock and cancel order
     const updated = await prisma.$transaction(async (tx) => {
-      // 1. Update statuses
+      const fresh = await tx.order.findUnique({
+        where: { id },
+        include: { items: true },
+      });
+
+      if (!fresh || fresh.orderStatus === 'cancelled') {
+        throw new Error('This order has already been cancelled.');
+      }
+
       const ord = await tx.order.update({
         where: { id },
         data: {
@@ -383,34 +420,10 @@ router.put('/:id/cancel', protect, async (req, res) => {
         },
       });
 
-      // 2. Restore variant stock
-      for (const item of order.items) {
-        if (item.variantId) {
-          const variant = await tx.productVariant.findUnique({ where: { id: item.variantId } });
-          const newQty = (variant?.stock || 0) + item.quantity;
-
-          await tx.productVariant.update({
-            where: { id: item.variantId },
-            data: { stock: { increment: item.quantity } },
-          });
-
-          // Log stock recovery
-          await tx.inventoryLog.create({
-            data: {
-              productId: item.productId,
-              variantId: item.variantId,
-              previousQuantity: variant?.stock || 0,
-              newQuantity: newQty,
-              changeAmount: item.quantity,
-              reason: 'cancellation',
-              orderId: id,
-              updatedBy: `user_${req.user.id}`,
-            },
-          });
-        }
+      if (!fresh.stockRestored) {
+        await restoreOrderStock(tx, fresh, 'cancellation', `user_${req.user.id}`);
       }
 
-      // Mark payments as failed
       await tx.payment.updateMany({
         where: { orderId: id },
         data: { status: 'failed' },
@@ -422,7 +435,7 @@ router.put('/:id/cancel', protect, async (req, res) => {
     res.json({ message: 'Order successfully cancelled', order: updated });
   } catch (error) {
     console.error('Cancel order error:', error);
-    res.status(500).json({ message: 'Server error processing cancellation' });
+    res.status(500).json({ message: error.message || 'Server error processing cancellation' });
   }
 });
 
