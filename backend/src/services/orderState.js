@@ -40,8 +40,7 @@ const TERMINAL_ORDER_STATUSES = Object.freeze(['cancelled', 'returned']);
 /** Statuses from which stock was already reserved at checkout and may be restored once. */
 function canRestoreStock(order) {
   if (!order) return false;
-  if (order.stockRestored) return false;
-  return !TERMINAL_ORDER_STATUSES.includes(order.orderStatus) || order.orderStatus === 'pending';
+  return !order.stockRestored;
 }
 
 function isValidOrderStatus(status) {

@@ -2,11 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
 import { formatCurrency } from '@/lib/currency';
 
 interface WishlistItem {
@@ -27,6 +29,7 @@ interface WishlistItem {
 export default function WishlistPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const { addToast } = useToast();
 
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,8 +39,9 @@ export default function WishlistPage() {
     try {
       const data = await api.get('/wishlist');
       setWishlist(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load wishlist items');
+    } catch (err: unknown) {
+      const error = err as Error;
+      setError(error.message || 'Failed to load wishlist items');
     } finally {
       setLoading(false);
     }
@@ -48,15 +52,18 @@ export default function WishlistPage() {
       router.push('/login');
       return;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadWishlist();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const handleRemoveFromWishlist = async (productId: number) => {
     try {
       await api.delete(`/wishlist/${productId}`);
       setWishlist((prev) => prev.filter((item) => item.productId !== productId));
-    } catch (err: any) {
-      alert(err.message || 'Failed to remove product from wishlist');
+    } catch (err: unknown) {
+      const error = err as Error;
+      addToast(error.message || 'Failed to remove product from wishlist', 'error');
     }
   };
 
@@ -116,10 +123,11 @@ export default function WishlistPage() {
                   >
                     {/* Thumbnail */}
                     <div className="relative aspect-square overflow-hidden rounded-xl bg-slate-950">
-                      <img
+                      <Image
                         src={imgUrl}
                         alt={prod.name}
-                        className="h-full w-full object-cover object-center group-hover:scale-102 transition-transform duration-300"
+                        fill
+                        className="object-cover object-center group-hover:scale-102 transition-transform duration-300"
                       />
                       {totalStock <= 0 && (
                         <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80">

@@ -7,12 +7,15 @@ import Footer from '@/components/Footer';
 import { api } from '@/lib/api';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import Image from 'next/image';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { addToCart } = useCart();
   const { user } = useAuth();
+  const { addToast } = useToast();
 
   const [product, setProduct] = useState<any>(null);
   const [activeImage, setActiveImage] = useState<string>('');
@@ -105,7 +108,7 @@ export default function ProductDetailPage() {
     }
 
     if (product.variants && product.variants.length > 0 && !selectedVariant) {
-      alert('Selected option is currently unavailable');
+      addToast('Selected option is currently unavailable', 'error');
       return;
     }
 
@@ -116,8 +119,9 @@ export default function ProductDetailPage() {
       await addToCart(product.id, variantId, quantity);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
-    } catch (err: any) {
-      alert(err.message || 'Failed to add items to cart');
+    } catch (err: unknown) {
+      const error = err as Error;
+      addToast(error.message || 'Failed to add items to cart', 'error');
     } finally {
       setAdding(false);
     }
@@ -203,11 +207,12 @@ export default function ProductDetailPage() {
             
             {/* Gallery Section */}
             <div className="flex-1 flex flex-col gap-4">
-              <div className="aspect-square overflow-hidden rounded-2xl border border-slate-900 bg-slate-900/20">
-                <img
+              <div className="relative aspect-square overflow-hidden rounded-2xl border border-slate-900 bg-slate-900/20">
+                <Image
                   src={activeImage}
                   alt={product.name}
-                  className="h-full w-full object-cover object-center"
+                  fill
+                  className="object-cover object-center"
                 />
               </div>
               {product.images && product.images.length > 1 && (
@@ -216,11 +221,11 @@ export default function ProductDetailPage() {
                     <button
                       key={img.id}
                       onClick={() => setActiveImage(img.url)}
-                      className={`h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border-2 transition-all ${
+                      className={`relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border-2 transition-all ${
                         activeImage === img.url ? 'border-violet-500 bg-violet-500/10' : 'border-slate-900'
                       }`}
                     >
-                      <img src={img.url} alt="" className="h-full w-full object-cover object-center" />
+                      <Image src={img.url} alt="" fill className="object-cover object-center" />
                     </button>
                   ))}
                 </div>

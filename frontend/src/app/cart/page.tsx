@@ -7,11 +7,14 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/context/ToastContext';
+import Image from 'next/image';
 
 export default function CartPage() {
   const { cart, updateQuantity, removeFromCart, loading } = useCart();
   const { user } = useAuth();
   const router = useRouter();
+  const { addToast } = useToast();
 
   React.useEffect(() => {
     if (!user) {
@@ -37,13 +40,14 @@ export default function CartPage() {
       return;
     }
     if (targetQty > stock) {
-      alert(`Cannot exceed available stock of ${stock}`);
+      addToast(`Cannot exceed available stock of ${stock}`, 'error');
       return;
     }
     try {
       await updateQuantity(itemId, targetQty);
-    } catch (err: any) {
-      alert(err.message || 'Failed to update quantity');
+    } catch (err: unknown) {
+      const error = err as Error;
+      addToast(error.message || 'Failed to update quantity', 'error');
     }
   };
 
@@ -66,11 +70,12 @@ export default function CartPage() {
                   >
                     <div className="flex items-center gap-4">
                       {/* Product Thumbnail */}
-                      <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-slate-950">
-                        <img
+                      <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-slate-950">
+                        <Image
                           src={item.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=200&auto=format&fit=crop'}
                           alt={item.name}
-                          className="h-full w-full object-cover object-center"
+                          fill
+                          className="object-cover object-center"
                         />
                       </div>
 

@@ -14,6 +14,11 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ecommerce"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # 2. Node.js Express Backend REST API
   backend:
@@ -25,14 +30,12 @@ services:
     environment:
       - PORT=5000
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ecommerce?schema=public
-      - JWT_SECRET=ecommerce_jwt_secret_key_2026_safe_and_secure
-      - FRONTEND_URL=http://localhost:3000
-      - RAZORPAY_KEY_ID=rzp_test_placeholder_key_change_in_production
-      - RAZORPAY_KEY_SECRET=placeholder_secret_change_in_production
-      - RAZORPAY_WEBHOOK_SECRET=placeholder_webhook_secret_change_in_production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-ecommerce}?schema=public
+    env_file:
+      - ./backend/.env.production
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
 volumes:
   pgdata:

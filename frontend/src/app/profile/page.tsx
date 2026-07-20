@@ -65,6 +65,7 @@ export default function ProfilePage() {
       setName(user.name);
       setEmail(user.email);
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   }, [user]);
 
   // Load Addresses
@@ -74,7 +75,7 @@ export default function ProfilePage() {
     try {
       const data = await api.get('/users/addresses');
       setAddresses(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching addresses:', err);
     } finally {
       setAddressLoading(false);
@@ -83,8 +84,10 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (activeTab === 'addresses') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadAddresses();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   if (!user) {
@@ -133,8 +136,9 @@ export default function ProfilePage() {
 
       await refreshUser();
       setSuccess('Profile details updated successfully!');
-    } catch (err: any) {
-      setError(err.message || 'Failed to update profile info');
+    } catch (err: unknown) {
+      const error = err as Error;
+      setError(error.message || 'Failed to update profile info');
     } finally {
       setLoading(false);
     }
@@ -173,8 +177,9 @@ export default function ProfilePage() {
 
       resetAddressForm();
       await loadAddresses();
-    } catch (err: any) {
-      setError(err.message || 'Failed to process address card');
+    } catch (err: unknown) {
+      const error = err as Error;
+      setError(error.message || 'Failed to process address card');
     } finally {
       setAddressLoading(false);
     }
@@ -202,8 +207,9 @@ export default function ProfilePage() {
       await api.delete(`/users/addresses/${addrId}`);
       setSuccess('Address deleted successfully.');
       await loadAddresses();
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete address card');
+    } catch (err: unknown) {
+      const error = err as Error;
+      setError(error.message || 'Failed to delete address card');
     } finally {
       setAddressLoading(false);
     }
@@ -214,8 +220,9 @@ export default function ProfilePage() {
     try {
       await api.put(`/users/addresses/${addrId}`, { isDefault: true });
       await loadAddresses();
-    } catch (err: any) {
-      setError(err.message || 'Failed to set default address');
+    } catch (err: unknown) {
+      const error = err as Error;
+      setError(error.message || 'Failed to set default address');
     } finally {
       setAddressLoading(false);
     }

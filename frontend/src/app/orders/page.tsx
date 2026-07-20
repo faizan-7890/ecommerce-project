@@ -7,10 +7,13 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { useToast } from '@/context/ToastContext';
+import Image from 'next/image';
 
 export default function OrdersPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const { addToast } = useToast();
 
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,10 +53,11 @@ export default function OrdersPage() {
     if (!confirm('Are you sure you want to cancel this order?')) return;
     try {
       await api.put(`/orders/${orderId}/cancel`);
-      alert('Order cancelled successfully!');
+      addToast('Order cancelled successfully!', 'success');
       loadOrders();
-    } catch (err: any) {
-      alert(err.message || 'Failed to cancel order');
+    } catch (err: unknown) {
+      const error = err as Error;
+      addToast(error.message || 'Failed to cancel order', 'error');
     }
   };
 
@@ -146,14 +150,17 @@ export default function OrdersPage() {
                     <div className="space-y-4">
                       {order.items.map((item: any) => (
                         <div key={item.id} className="flex items-center gap-4">
-                          <img
-                            src={
-                              item.product?.images?.[0]?.url ||
-                              'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=200&auto=format&fit=crop'
-                            }
-                            alt={item.productNameSnapshot}
-                            className="h-12 w-12 rounded-lg object-cover bg-slate-950"
-                          />
+                          <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-slate-950 flex-shrink-0">
+                            <Image
+                              src={
+                                item.product?.images?.[0]?.url ||
+                                'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=200&auto=format&fit=crop'
+                              }
+                              alt={item.productNameSnapshot}
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
                           <div className="flex-1 text-sm">
                             <span className="font-bold text-white block">{item.productNameSnapshot}</span>
                             <span className="text-slate-500">Qty: {item.quantity}</span>

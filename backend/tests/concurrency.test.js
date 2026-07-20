@@ -316,7 +316,7 @@ describe('Database Locks, Concurrency & Idempotency Checks', () => {
       .set('Authorization', `Bearer ${token1}`)
       .expect(400);
 
-    expect(failRes.body.message).toContain('Cannot cancel orders');
+    expect(failRes.body.message).toContain('already been cancelled');
 
     dbVar = await prisma.productVariant.findUnique({ where: { id: variant.id } });
     expect(dbVar.stock).toBe(1); // STILL 1 (not double incremented!)

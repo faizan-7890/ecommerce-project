@@ -6,10 +6,13 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { useToast } from '@/context/ToastContext';
+import { Product, Category, Order, Coupon, ProductVariant } from '@/types';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const router = useRouter();
+  const { addToast } = useToast();
 
   // Selected tab: overview, products, categories, orders, coupons
   const [activeTab, setActiveTab] = useState('overview');
@@ -22,7 +25,7 @@ export default function AdminDashboard() {
   const [endDate, setEndDate] = useState('');
 
   // Products State
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -38,7 +41,7 @@ export default function AdminDashboard() {
   });
 
   // Variant Modal State
-  const [variantModalProduct, setVariantModalProduct] = useState<any>(null);
+  const [variantModalProduct, setVariantModalProduct] = useState<Product | null>(null);
   const [variantSku, setVariantSku] = useState('');
   const [variantPrice, setVariantPrice] = useState('');
   const [variantStock, setVariantStock] = useState('10');
@@ -47,17 +50,17 @@ export default function AdminDashboard() {
   const [variantMaterial, setVariantMaterial] = useState('');
 
   // Categories State
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryDesc, setNewCategoryDesc] = useState('');
 
   // Orders State
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
 
   // Coupons State
-  const [coupons, setCoupons] = useState<any[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loadingCoupons, setLoadingCoupons] = useState(true);
   const [newCoupon, setNewCoupon] = useState({
     code: '',
@@ -162,7 +165,7 @@ export default function AdminDashboard() {
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProduct.name || !newProduct.description || !newProduct.basePrice || !newProduct.categoryId) {
-      alert('Please fill in required fields');
+      addToast('Please fill in required fields', 'error');
       return;
     }
 
@@ -181,7 +184,7 @@ export default function AdminDashboard() {
         images: imagesArray,
       });
 
-      alert('Product created successfully!');
+      addToast('Product created successfully!', 'success');
       setNewProduct({
         name: '',
         description: '',
@@ -195,8 +198,8 @@ export default function AdminDashboard() {
         imageUrl: '',
       });
       loadProducts();
-    } catch (err: any) {
-      alert(err.message || 'Failed to create product');
+    } catch (err: unknown) {
+      addToast(err.message || 'Failed to create product', 'error');
     }
   };
 
@@ -204,15 +207,15 @@ export default function AdminDashboard() {
     if (!confirm('Are you sure you want to disable this product?')) return;
     try {
       await api.delete(`/products/${productId}`);
-      alert('Product status toggled to inactive/disabled');
+      addToast('Product status toggled to inactive/disabled', 'info');
       loadProducts();
-    } catch (err: any) {
-      alert(err.message || 'Failed to disable product');
+    } catch (err: unknown) {
+      addToast(err.message || 'Failed to disable product', 'error');
     }
   };
 
   // Actions: Variants Admin Modal
-  const handleOpenVariantsModal = (prod: any) => {
+  const handleOpenVariantsModal = (prod: Product) => {
     setVariantModalProduct(prod);
     setVariantSku(`${prod.name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`);
     setVariantPrice('');
@@ -236,7 +239,7 @@ export default function AdminDashboard() {
         material: variantMaterial || undefined,
       });
 
-      alert('Variant successfully added!');
+      addToast('Variant successfully added!', 'success');
       // Reload product details inside modal
       const updatedProd = await api.get(`/products/${variantModalProduct.id}`);
       setVariantModalProduct(updatedProd);
@@ -248,8 +251,8 @@ export default function AdminDashboard() {
       setVariantSize('');
       setVariantColor('');
       setVariantMaterial('');
-    } catch (err: any) {
-      alert(err.message || 'Failed to add variant');
+    } catch (err: unknown) {
+      addToast(err.message || 'Failed to add variant', 'error');
     }
   };
 
@@ -257,11 +260,11 @@ export default function AdminDashboard() {
     if (!confirm('Are you sure you want to delete this variant option?')) return;
     try {
       await api.delete(`/products/${variantModalProduct.id}/variants/${variantId}`);
-      alert('Variant deleted');
+      addToast('Variant deleted', 'info');
       const updatedProd = await api.get(`/products/${variantModalProduct.id}`);
       setVariantModalProduct(updatedProd);
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete variant');
+    } catch (err: unknown) {
+      addToast(err.message || 'Failed to delete variant', 'error');
     }
   };
 
@@ -269,7 +272,7 @@ export default function AdminDashboard() {
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategoryName) {
-      alert('Please enter a category name');
+      addToast('Please enter a category name', 'error');
       return;
     }
 
@@ -279,12 +282,12 @@ export default function AdminDashboard() {
         description: newCategoryDesc,
       });
 
-      alert('Category created successfully!');
+      addToast('Category created successfully!', 'success');
       setNewCategoryName('');
       setNewCategoryDesc('');
       loadCategories();
-    } catch (err: any) {
-      alert(err.message || 'Failed to create category');
+    } catch (err: unknown) {
+      addToast(err.message || 'Failed to create category', 'error');
     }
   };
 
@@ -292,10 +295,10 @@ export default function AdminDashboard() {
     if (!confirm('Are you sure you want to delete this category?')) return;
     try {
       await api.delete(`/categories/${categoryId}`);
-      alert('Category deleted successfully');
+      addToast('Category deleted successfully', 'success');
       loadCategories();
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete category');
+    } catch (err: unknown) {
+      addToast(err.message || 'Failed to delete category', 'error');
     }
   };
 
@@ -303,10 +306,10 @@ export default function AdminDashboard() {
   const handleUpdateOrderStatus = async (orderId: number, field: string, value: string) => {
     try {
       await api.put(`/admin/orders/${orderId}/status`, { [field]: value });
-      alert(`Order ${field} updated to '${value}'`);
+      addToast(`Order ${field} updated to '${value}'`, 'info');
       loadAllOrders();
-    } catch (err: any) {
-      alert(err.message || 'Failed to update order status');
+    } catch (err: unknown) {
+      addToast(err.message || 'Failed to update order status', 'error');
     }
   };
 
@@ -325,7 +328,7 @@ export default function AdminDashboard() {
         expirationDate: newCoupon.expirationDate || undefined,
       });
 
-      alert('Coupon created successfully!');
+      addToast('Coupon created successfully!', 'success');
       setNewCoupon({
         code: '',
         discountType: 'percentage',
@@ -335,8 +338,8 @@ export default function AdminDashboard() {
         expirationDate: '',
       });
       loadAllCoupons();
-    } catch (err: any) {
-      alert(err.message || 'Failed to create coupon');
+    } catch (err: unknown) {
+      addToast(err.message || 'Failed to create coupon', 'error');
     }
   };
 
@@ -344,10 +347,10 @@ export default function AdminDashboard() {
     if (!confirm('Are you sure you want to delete this coupon?')) return;
     try {
       await api.delete(`/coupons/admin/${couponId}`);
-      alert('Coupon deleted successfully');
+      addToast('Coupon deleted successfully', 'success');
       loadAllCoupons();
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete coupon');
+    } catch (err: unknown) {
+      addToast(err.message || 'Failed to delete coupon', 'error');
     }
   };
 
@@ -1090,7 +1093,7 @@ export default function AdminDashboard() {
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-850 pb-2">Active Options</h4>
                     <div className="max-h-64 overflow-y-auto space-y-2 pr-2 text-xs">
                       {variantModalProduct.variants && variantModalProduct.variants.length > 0 ? (
-                        variantModalProduct.variants.map((v: any) => (
+                        variantModalProduct.variants.map((v: ProductVariant & { threshold?: number }) => (
                           <div key={v.id} className="flex justify-between items-center bg-slate-950 p-3 rounded-lg border border-slate-850">
                             <div>
                               <span className="font-bold text-white block">{v.size || 'No Size'} / {v.color || 'No Color'}</span>

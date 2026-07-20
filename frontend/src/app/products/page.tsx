@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import { api } from '@/lib/api';
+import { Product, Category } from '@/types';
 
 function ProductsContent() {
   const searchParams = useSearchParams();
@@ -15,8 +16,8 @@ function ProductsContent() {
   const initialSearch = searchParams.get('search') || '';
 
   // Local state
-  const [products, setProducts] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [minPrice, setMinPrice] = useState('');
@@ -61,7 +62,9 @@ function ProductsContent() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, selectedCategory, sortBy, sortOrder]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {

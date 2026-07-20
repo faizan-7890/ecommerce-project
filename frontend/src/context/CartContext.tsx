@@ -45,7 +45,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const refreshCart = async () => {
+  const refreshCart = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -56,15 +56,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       refreshCart();
     } else {
       setCart(null);
     }
-  }, [user]);
+  }, [user, refreshCart]);
 
   const addToCart = async (productId: number, variantId: number | null = null, quantity: number = 1) => {
     if (!user) {

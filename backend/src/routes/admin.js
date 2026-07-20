@@ -7,6 +7,7 @@ const {
   isValidPaymentStatus,
   isValidShipmentStatus,
   isValidRefundStatus,
+  canRestoreStock,
 } = require('../services/orderState');
 const { restoreOrderStock } = require('../services/inventory');
 
@@ -90,7 +91,7 @@ router.put('/orders/:id/status', async (req, res) => {
         (orderStatus === 'cancelled' || refundStatus === 'completed') &&
         order.orderStatus !== 'cancelled' &&
         order.orderStatus !== 'returned' &&
-        !order.stockRestored;
+        canRestoreStock(order);
 
       if (isTransitioningToCancelled) {
         const reason = refundStatus === 'completed' ? 'refund' : 'cancellation';

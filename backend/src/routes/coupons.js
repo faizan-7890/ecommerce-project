@@ -32,7 +32,7 @@ router.post('/validate', protect, async (req, res) => {
     const minAmount = parseFloat(coupon.minOrderAmount);
     if (cartSubtotal < minAmount) {
       return res.status(400).json({
-        message: `Minimum order amount of $${minAmount.toFixed(2)} required to use this coupon`,
+        message: `Minimum order amount of ₹${minAmount.toFixed(2)} required to use this coupon`,
       });
     }
 

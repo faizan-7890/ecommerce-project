@@ -115,7 +115,7 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    if (!product) {
+    if (!product || product.status !== 'active') {
       return res.status(404).json({ message: 'Product not found' });
     }
 

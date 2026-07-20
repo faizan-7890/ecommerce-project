@@ -22,6 +22,7 @@ export default function RegisterPage() {
     if (user) {
       router.push('/');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,8 +42,9 @@ export default function RegisterPage() {
     try {
       await register(name, email, password);
       router.push('/');
-    } catch (err: any) {
-      setError(err.message || 'Registration failed. Email may already be in use.');
+    } catch (err: unknown) {
+      const error = err as Error;
+      setError(error.message || 'Registration failed. Email may already be in use.');
     } finally {
       setLoading(false);
     }

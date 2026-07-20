@@ -4,6 +4,7 @@ const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const { assertPaymentConfigForEnvironment } = require('./src/config/payments');
+const { assertJwtSecret } = require('./src/config/jwt');
 const { prisma } = require('./src/config/db');
 
 const authRoutes = require('./src/routes/auth');
@@ -18,9 +19,10 @@ const reviewRoutes = require('./src/routes/reviews');
 const couponRoutes = require('./src/routes/coupons');
 const paymentRoutes = require('./src/routes/payments');
 
-// Fail fast in production if payment secrets are missing/placeholder
+// Fail fast in production if required config is missing/placeholder
 try {
   assertPaymentConfigForEnvironment();
+  assertJwtSecret();
 } catch (err) {
   console.error(err.message);
   if (process.env.NODE_ENV === 'production') {

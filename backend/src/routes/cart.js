@@ -65,7 +65,7 @@ const getCartResponse = async (userId) => {
       discount: discountValue,
       finalUnitPrice: parseFloat(finalUnitPrice.toFixed(2)),
       quantity: item.quantity,
-      stock: item.variant ? item.variant.stock : item.product.lowStockThreshold, // fallback stock
+      stock: item.variant ? item.variant.stock : 0,
       size: item.variant ? item.variant.size : null,
       color: item.variant ? item.variant.color : null,
       image: item.product.images.length > 0 ? item.product.images[0].url : null,
@@ -141,8 +141,8 @@ router.post('/items', protect, async (req, res) => {
       }
       availableStock = variant.stock;
     } else {
-      // Products without variants check low stock settings or assume active stock
-      availableStock = 99; // Mock stock count for base products
+      // Products without variants have no stock in this system (they must have at least one default variant)
+      availableStock = 0;
     }
 
     if (availableStock < qty) {
@@ -226,7 +226,7 @@ router.put('/items/:id', protect, async (req, res) => {
       return res.status(404).json({ message: 'Cart item not found or unauthorized' });
     }
 
-    const maxStock = cartItem.variant ? cartItem.variant.stock : 99;
+    const maxStock = cartItem.variant ? cartItem.variant.stock : 0;
     if (maxStock < qty) {
       return res.status(400).json({ message: `Insufficient stock. Only ${maxStock} items left.` });
     }

@@ -10,7 +10,7 @@ const {
   isPlaceholder,
 } = require('../config/payments');
 const { safeEqual } = require('../utils/crypto');
-const { PAID_ORDER_STATUS } = require('../services/orderState');
+const { PAID_ORDER_STATUS, canRestoreStock } = require('../services/orderState');
 const { restoreOrderStock } = require('../services/inventory');
 
 const MOCK_SIGNATURE = 'mock_valid_signature_veloce_2026';
@@ -301,7 +301,7 @@ router.post('/webhook', async (req, res) => {
       const razorpayOrderId = paymentEntity?.order_id;
       if (razorpayOrderId) {
         const payment = await findPaymentByRazorpayOrderId(razorpayOrderId);
-        if (payment && payment.status !== 'paid' && !payment.order.stockRestored) {
+        if (payment && payment.status !== 'paid' && canRestoreStock(payment.order)) {
           await prisma.$transaction(async (tx) => {
             await tx.payment.update({
               where: { id: payment.id },
@@ -385,7 +385,7 @@ router.post('/webhook', async (req, res) => {
           };
 
           // Restore stock only once on full refund
-          if (fullyRefunded && !dbPayment.order.stockRestored) {
+          if (fullyRefunded && canRestoreStock(dbPayment.order)) {
             orderUpdate.orderStatus = 'cancelled';
             await restoreOrderStock(tx, dbPayment.order, 'refund', 'razorpay_webhook');
           }
@@ -514,7 +514,7 @@ router.post('/:id/refund', protect, isAdmin, async (req, res) => {
       };
 
       // Restore stock only once on full refund
-      if (fullyRefunded && !payment.order.stockRestored) {
+      if (fullyRefunded && canRestoreStock(payment.order)) {
         orderData.orderStatus = 'cancelled';
         await restoreOrderStock(tx, payment.order, 'refund', `admin_${req.user.id}`);
       } else if (fullyRefunded) {
@@ -570,7 +570,7 @@ router.post('/reconcile-expired', protect, isAdmin, async (req, res) => {
           where: { id: order.id },
           include: { items: true },
         });
-        if (!fresh || fresh.stockRestored || fresh.paymentStatus === 'paid') return;
+        if (!fresh || !canRestoreStock(fresh) || fresh.paymentStatus === 'paid') return;
 
         await tx.order.update({
           where: { id: order.id },

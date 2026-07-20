@@ -3,6 +3,8 @@ const router = express.Router();
 const { prisma } = require('../config/db');
 const { protect } = require('../middleware/auth');
 const { restoreOrderStock, decrementVariantStock } = require('../services/inventory');
+const { calculateItemPrice, calculateOrderTotals } = require('../services/pricing');
+const { canRestoreStock } = require('../services/orderState');
 
 // Unpaid card checkouts expire after this window so stock is not held forever
 const ORDER_EXPIRY_MINUTES = parseInt(process.env.ORDER_EXPIRY_MINUTES || '30', 10);
@@ -96,10 +98,7 @@ router.post('/', protect, async (req, res) => {
           ? parseFloat(item.variant.price)
           : parseFloat(item.product.basePrice);
 
-      const flatDiscount = parseFloat(item.product.discountPrice || 0);
-      let finalPrice = basePrice - flatDiscount;
-      if (finalPrice < 0) finalPrice = 0;
-
+      const finalPrice = calculateItemPrice(basePrice, item.product.discountPrice);
       subtotal += finalPrice * item.quantity;
     }
 
@@ -175,11 +174,7 @@ router.post('/', protect, async (req, res) => {
         }
       }
 
-      const taxableSubtotal = subtotal - discountAmount;
-      const taxAmount = taxableSubtotal * 0.08;
-      // Free shipping for orders above ₹100, otherwise flat ₹10 (INR)
-      const shippingAmount = taxableSubtotal >= 100.0 ? 0.0 : 10.0;
-      const finalTotal = taxableSubtotal + taxAmount + shippingAmount;
+      const { taxAmount, shippingAmount, finalTotal } = calculateOrderTotals(subtotal, discountAmount);
 
       // Card checkouts get an expiry window for unpaid inventory reservation
       const expiresAt =
@@ -215,9 +210,7 @@ router.post('/', protect, async (req, res) => {
                 item.variant && item.variant.price !== null
                   ? parseFloat(item.variant.price)
                   : parseFloat(item.product.basePrice);
-              const flatDiscount = parseFloat(item.product.discountPrice || 0);
-              let finalUnitPrice = basePrice - flatDiscount;
-              if (finalUnitPrice < 0) finalUnitPrice = 0;
+              const finalUnitPrice = calculateItemPrice(basePrice, item.product.discountPrice);
 
               return {
                 productId: item.productId,
@@ -420,7 +413,7 @@ router.put('/:id/cancel', protect, async (req, res) => {
         },
       });
 
-      if (!fresh.stockRestored) {
+      if (canRestoreStock(fresh)) {
         await restoreOrderStock(tx, fresh, 'cancellation', `user_${req.user.id}`);
       }
 

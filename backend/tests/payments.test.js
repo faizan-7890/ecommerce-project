@@ -5,8 +5,7 @@ const { prisma } = require('../src/config/db');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ecommerce_jwt_secret_key_2026_safe_and_secure';
-const WEBHOOK_SECRET =
-  process.env.RAZORPAY_WEBHOOK_SECRET || 'placeholder_webhook_secret';
+const WEBHOOK_SECRET = 'test_mock_webhook_secret';
 
 function signWebhookBody(bodyObj) {
   const raw = Buffer.from(JSON.stringify(bodyObj));

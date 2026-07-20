@@ -2,40 +2,11 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-
-interface ProductImage {
-  id: number;
-  url: string;
-}
-
-interface Category {
-  id: number;
-  name: string;
-}
-
-interface ProductVariant {
-  id: number;
-  sku: string;
-  price: number | null;
-  stock: number;
-  size: string | null;
-  color: string | null;
-}
-
-interface Product {
-  id: number;
-  name: string;
-  description: string;
-  basePrice: number;
-  discountPrice: number;
-  stock: number;
-  images: ProductImage[];
-  category: Category;
-  variants: ProductVariant[];
-}
+import { Product } from '@/types';
 
 export default function ProductCard({ product }: { product: Product }) {
   const { addToCart } = useCart();
@@ -76,8 +47,9 @@ export default function ProductCard({ product }: { product: Product }) {
       await addToCart(product.id, null, 1);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to add item');
+    } catch (err: unknown) {
+      const error = err as Error;
+      setErrorMsg(error.message || 'Failed to add item');
       setTimeout(() => setErrorMsg(''), 3000);
     } finally {
       setAdding(false);
@@ -92,10 +64,11 @@ export default function ProductCard({ product }: { product: Product }) {
     <Link href={`/products/${product.id}`} className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-900 bg-slate-900/40 p-4 transition-all duration-300 hover:border-slate-800 hover:bg-slate-900/60 hover:shadow-2xl hover:shadow-violet-500/5">
       {/* Product Image */}
       <div className="relative aspect-square overflow-hidden rounded-xl bg-slate-950">
-        <img
+        <Image
           src={imageUrl}
           alt={product.name}
-          className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
+          fill
+          className="object-cover object-center transition-transform duration-500 group-hover:scale-105"
         />
         {hasDiscount && (
           <span className="absolute top-2 left-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-2 py-0.5 text-xs font-bold text-white shadow-md">
