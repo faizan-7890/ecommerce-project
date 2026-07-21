@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
 
 # ─── Dashboard Analytics ────────────────────────────────────────────────────
-@router.get("/dashboard")
+@router.get("/stats")
 def get_dashboard(db: Session = Depends(get_db), user: User = Depends(require_admin)):
     # Total revenue
     total_revenue = db.query(func.sum(Order.total)).filter(Order.payment_status == "paid").scalar() or 0

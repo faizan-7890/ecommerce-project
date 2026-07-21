@@ -12,7 +12,7 @@ from schemas import CategoryCreate, CategoryOut, MessageResponse
 router = APIRouter(prefix="/api/categories", tags=["Categories"])
 
 
-@router.get("/", response_model=List[CategoryOut])
+@router.get("", response_model=List[CategoryOut])
 def list_categories(db: Session = Depends(get_db)):
     return db.query(Category).all()
 
@@ -25,7 +25,7 @@ def get_category(category_id: int, db: Session = Depends(get_db)):
     return cat
 
 
-@router.post("/", response_model=CategoryOut, status_code=201)
+@router.post("", response_model=CategoryOut, status_code=201)
 def create_category(
     data: CategoryCreate,
     db: Session = Depends(get_db),

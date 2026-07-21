@@ -22,7 +22,7 @@ def _get_or_create_cart(db: Session, user_id: int) -> Cart:
     return cart
 
 
-@router.get("/", response_model=CartOut)
+@router.get("", response_model=CartOut)
 def get_cart(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     cart = _get_or_create_cart(db, user.id)
     cart = (
@@ -37,7 +37,7 @@ def get_cart(db: Session = Depends(get_db), user: User = Depends(get_current_use
     return cart
 
 
-@router.post("/", response_model=CartItemOut, status_code=201)
+@router.post("/items", response_model=CartItemOut, status_code=201)
 def add_to_cart(
     data: CartItemCreate,
     db: Session = Depends(get_db),
@@ -83,7 +83,7 @@ def add_to_cart(
         return item
 
 
-@router.put("/{item_id}", response_model=CartItemOut)
+@router.put("/items/{item_id}", response_model=CartItemOut)
 def update_cart_item(
     item_id: int,
     data: CartItemUpdate,
@@ -106,7 +106,7 @@ def update_cart_item(
     return item
 
 
-@router.delete("/{item_id}", response_model=MessageResponse)
+@router.delete("/items/{item_id}", response_model=MessageResponse)
 def remove_cart_item(
     item_id: int,
     db: Session = Depends(get_db),
@@ -122,7 +122,7 @@ def remove_cart_item(
     return {"message": "Item removed from cart"}
 
 
-@router.delete("/", response_model=MessageResponse)
+@router.delete("", response_model=MessageResponse)
 def clear_cart(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     cart = _get_or_create_cart(db, user.id)
     db.query(CartItem).filter(CartItem.cart_id == cart.id).delete()

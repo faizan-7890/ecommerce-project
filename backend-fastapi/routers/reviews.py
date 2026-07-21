@@ -12,7 +12,7 @@ from schemas import ReviewCreate, ReviewOut
 router = APIRouter(prefix="/api/reviews", tags=["Reviews"])
 
 
-@router.get("/product/{product_id}", response_model=List[ReviewOut])
+@router.get("/{product_id}", response_model=List[ReviewOut])
 def get_product_reviews(product_id: int, db: Session = Depends(get_db)):
     reviews = (
         db.query(Review)
@@ -24,7 +24,7 @@ def get_product_reviews(product_id: int, db: Session = Depends(get_db)):
     return reviews
 
 
-@router.post("/", response_model=ReviewOut, status_code=201)
+@router.post("", response_model=ReviewOut, status_code=201)
 def create_review(
     data: ReviewCreate,
     db: Session = Depends(get_db),

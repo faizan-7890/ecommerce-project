@@ -153,7 +153,7 @@ export default function AdminDashboard() {
   const loadAllCoupons = async () => {
     setLoadingCoupons(true);
     try {
-      const data = await api.get('/coupons/admin');
+      const data = await api.get('/coupons');
       setCoupons(data);
     } catch (err) {
       console.error('Error fetching coupons:', err);
@@ -320,7 +320,7 @@ export default function AdminDashboard() {
     if (!newCoupon.code || !newCoupon.discountValue) return;
 
     try {
-      await api.post('/coupons/admin', {
+      await api.post('/coupons', {
         code: newCoupon.code,
         discountType: newCoupon.discountType,
         discountValue: parseFloat(newCoupon.discountValue),
@@ -347,7 +347,7 @@ export default function AdminDashboard() {
   const handleDeleteCoupon = async (couponId: number) => {
     if (!confirm('Are you sure you want to delete this coupon?')) return;
     try {
-      await api.delete(`/coupons/admin/${couponId}`);
+      await api.delete(`/coupons/${couponId}`);
       addToast('Coupon deleted successfully', 'success');
       loadAllCoupons();
     } catch (err: any) {

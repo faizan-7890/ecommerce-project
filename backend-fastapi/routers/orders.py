@@ -33,7 +33,7 @@ def _generate_order_number() -> str:
 
 
 # ─── Create Order (Concurrency-Safe Checkout) ───────────────────────────────
-@router.post("/", response_model=OrderOut, status_code=201)
+@router.post("", response_model=OrderOut, status_code=201)
 def create_order(
     data: OrderCreate,
     db: Session = Depends(get_db),
@@ -226,7 +226,7 @@ def create_order(
 
 
 # ─── Get User Orders ────────────────────────────────────────────────────────
-@router.get("/", response_model=List[OrderOut])
+@router.get("", response_model=List[OrderOut])
 def get_orders(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     orders = (
         db.query(Order)

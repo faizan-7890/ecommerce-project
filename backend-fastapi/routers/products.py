@@ -28,7 +28,7 @@ def slugify(text: str) -> str:
 
 
 # ─── List Products ───────────────────────────────────────────────────────────
-@router.get("/", response_model=ProductListResponse)
+@router.get("", response_model=ProductListResponse)
 def list_products(
     search: Optional[str] = None,
     category_id: Optional[int] = Query(None, alias="categoryId"),
@@ -116,7 +116,7 @@ def get_product(product_id: str, db: Session = Depends(get_db)):
 
 
 # ─── Create Product ──────────────────────────────────────────────────────────
-@router.post("/", response_model=ProductOut, status_code=201)
+@router.post("", response_model=ProductOut, status_code=201)
 def create_product(
     data: ProductCreate,
     db: Session = Depends(get_db),

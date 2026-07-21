@@ -57,12 +57,12 @@ def validate_coupon(
     }
 
 
-@router.get("/", response_model=List[CouponOut])
+@router.get("", response_model=List[CouponOut])
 def list_coupons(db: Session = Depends(get_db), user: User = Depends(require_admin)):
     return db.query(Coupon).order_by(Coupon.created_at.desc()).all()
 
 
-@router.post("/", response_model=CouponOut, status_code=201)
+@router.post("", response_model=CouponOut, status_code=201)
 def create_coupon(
     data: CouponCreate,
     db: Session = Depends(get_db),
