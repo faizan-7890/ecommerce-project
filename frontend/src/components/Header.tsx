@@ -69,7 +69,7 @@ export default function Header() {
                   Admin
                 </Link>
               )}
-              <UserButton afterSignOutUrl="/" appearance={{ elements: { userButtonAvatarBox: 'w-8 h-8 rounded-full border border-slate-700' } }} />
+              <UserButton appearance={{ elements: { userButtonAvatarBox: 'w-8 h-8 rounded-full border border-slate-700' } }} />
             </div>
           ) : (
             <div className="flex items-center gap-4">

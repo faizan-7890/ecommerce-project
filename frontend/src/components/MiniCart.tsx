@@ -51,7 +51,7 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
             {/* Cart Items */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {cart && cart.items.length > 0 ? (
-                cart.items.map((item) => {
+                cart.items.map((item: any) => {
                   const image = item.product.images?.[0]?.url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=600&auto=format&fit=crop';
                   const price = item.variant ? parseFloat(item.variant.price?.toString() || item.product.basePrice.toString()) : parseFloat(item.product.basePrice.toString());
                   const finalPrice = price - parseFloat(item.product.discountPrice?.toString() || '0');
@@ -110,7 +110,7 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
               <div className="border-t border-slate-900 bg-slate-950 p-6">
                 <div className="flex justify-between text-base font-bold text-white mb-6">
                   <p>Subtotal</p>
-                  <p>${cart.items.reduce((acc, item) => {
+                  <p>${cart.items.reduce((acc, item: any) => {
                     const price = item.variant ? parseFloat(item.variant.price?.toString() || item.product.basePrice.toString()) : parseFloat(item.product.basePrice.toString());
                     const finalPrice = price - parseFloat(item.product.discountPrice?.toString() || '0');
                     return acc + finalPrice * item.quantity;

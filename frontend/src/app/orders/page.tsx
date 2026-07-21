@@ -55,7 +55,7 @@ export default function OrdersPage() {
       await api.put(`/orders/${orderId}/cancel`);
       addToast('Order cancelled successfully!', 'success');
       loadOrders();
-    } catch (err: unknown) {
+    } catch (err: any) {
       const error = err as Error;
       addToast(error.message || 'Failed to cancel order', 'error');
     }

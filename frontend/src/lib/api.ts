@@ -33,7 +33,7 @@ const getHeaders = (): HeadersInit => {
 };
 
 
-async function parseJsonSafe(res: Response): Promise<unknown> {
+async function parseJsonSafe(res: Response): Promise<any> {
   try {
     return await res.json();
   } catch {
@@ -41,7 +41,7 @@ async function parseJsonSafe(res: Response): Promise<unknown> {
   }
 }
 
-const customFetch = async (endpoint: string, options: RequestInit = {}): Promise<unknown> => {
+const customFetch = async (endpoint: string, options: RequestInit = {}): Promise<any> => {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers = {
     ...getHeaders(),

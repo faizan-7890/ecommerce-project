@@ -45,7 +45,7 @@ export default function CartPage() {
     }
     try {
       await updateQuantity(itemId, targetQty);
-    } catch (err: unknown) {
+    } catch (err: any) {
       const error = err as Error;
       addToast(error.message || 'Failed to update quantity', 'error');
     }

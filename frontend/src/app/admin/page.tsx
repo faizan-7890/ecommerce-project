@@ -199,7 +199,7 @@ export default function AdminDashboard() {
         imageUrl: '',
       });
       loadProducts();
-    } catch (err: unknown) {
+    } catch (err: any) {
       addToast(err.message || 'Failed to create product', 'error');
     }
   };
@@ -210,7 +210,7 @@ export default function AdminDashboard() {
       await api.delete(`/products/${productId}`);
       addToast('Product status toggled to inactive/disabled', 'info');
       loadProducts();
-    } catch (err: unknown) {
+    } catch (err: any) {
       addToast(err.message || 'Failed to disable product', 'error');
     }
   };
@@ -228,7 +228,7 @@ export default function AdminDashboard() {
 
   const handleAddVariantSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!variantSku) return;
+    if (!variantSku || !variantModalProduct) return;
 
     try {
       await api.post(`/products/${variantModalProduct.id}/variants`, {
@@ -252,19 +252,19 @@ export default function AdminDashboard() {
       setVariantSize('');
       setVariantColor('');
       setVariantMaterial('');
-    } catch (err: unknown) {
+    } catch (err: any) {
       addToast(err.message || 'Failed to add variant', 'error');
     }
   };
 
   const handleDeleteVariant = async (variantId: number) => {
-    if (!confirm('Are you sure you want to delete this variant option?')) return;
+    if (!confirm('Are you sure you want to delete this variant option?') || !variantModalProduct) return;
     try {
       await api.delete(`/products/${variantModalProduct.id}/variants/${variantId}`);
       addToast('Variant deleted', 'info');
       const updatedProd = await api.get(`/products/${variantModalProduct.id}`);
       setVariantModalProduct(updatedProd);
-    } catch (err: unknown) {
+    } catch (err: any) {
       addToast(err.message || 'Failed to delete variant', 'error');
     }
   };
@@ -287,7 +287,7 @@ export default function AdminDashboard() {
       setNewCategoryName('');
       setNewCategoryDesc('');
       loadCategories();
-    } catch (err: unknown) {
+    } catch (err: any) {
       addToast(err.message || 'Failed to create category', 'error');
     }
   };
@@ -298,7 +298,7 @@ export default function AdminDashboard() {
       await api.delete(`/categories/${categoryId}`);
       addToast('Category deleted successfully', 'success');
       loadCategories();
-    } catch (err: unknown) {
+    } catch (err: any) {
       addToast(err.message || 'Failed to delete category', 'error');
     }
   };
@@ -309,7 +309,7 @@ export default function AdminDashboard() {
       await api.put(`/admin/orders/${orderId}/status`, { [field]: value });
       addToast(`Order ${field} updated to '${value}'`, 'info');
       loadAllOrders();
-    } catch (err: unknown) {
+    } catch (err: any) {
       addToast(err.message || 'Failed to update order status', 'error');
     }
   };
@@ -339,7 +339,7 @@ export default function AdminDashboard() {
         expirationDate: '',
       });
       loadAllCoupons();
-    } catch (err: unknown) {
+    } catch (err: any) {
       addToast(err.message || 'Failed to create coupon', 'error');
     }
   };
@@ -350,7 +350,7 @@ export default function AdminDashboard() {
       await api.delete(`/coupons/admin/${couponId}`);
       addToast('Coupon deleted successfully', 'success');
       loadAllCoupons();
-    } catch (err: unknown) {
+    } catch (err: any) {
       addToast(err.message || 'Failed to delete coupon', 'error');
     }
   };
@@ -599,7 +599,7 @@ export default function AdminDashboard() {
                               )}
                             </td>
                             <td className="py-3 text-slate-450">{prod.category?.name}</td>
-                            <td className="py-3 text-slate-350">${parseFloat(prod.basePrice).toFixed(2)}</td>
+                            <td className="py-3 text-slate-350">${prod.basePrice.toFixed(2)}</td>
                             <td className="py-3 text-center text-slate-400">
                               {prod.variants?.length || 0} options
                             </td>
@@ -787,7 +787,7 @@ export default function AdminDashboard() {
                           <tr key={cat.id} className="border-b border-slate-900/40">
                             <td className="py-3 font-semibold text-white">#{cat.id}</td>
                             <td className="py-3 text-slate-350">{cat.name}</td>
-                            <td className="py-3 text-slate-400">{cat._count?.products || 0}</td>
+                            <td className="py-3 text-slate-400">{(cat as any)._count?.products || 0}</td>
                             <td className="py-3 text-right">
                               <button
                                 onClick={() => handleDeleteCategory(cat.id)}
@@ -864,8 +864,8 @@ export default function AdminDashboard() {
                         <tr key={ord.id} className="border-b border-slate-900/40">
                           <td className="py-4 font-mono font-bold text-white">{ord.orderNumber}</td>
                           <td className="py-4">
-                            <span className="block text-slate-200 font-semibold">{ord.user?.name}</span>
-                            <span className="text-xs text-slate-550">{ord.user?.email}</span>
+                            <span className="block text-slate-200 font-semibold">{(ord as any).user?.name}</span>
+                            <span className="text-xs text-slate-550">{(ord as any).user?.email}</span>
                           </td>
                           <td className="py-4 text-slate-400">
                             {ord.items.map((item: any) => (
@@ -874,7 +874,7 @@ export default function AdminDashboard() {
                               </span>
                             ))}
                           </td>
-                          <td className="py-4 text-slate-350">${parseFloat(ord.total).toFixed(2)}</td>
+                          <td className="py-4 text-slate-350">${ord.total.toFixed(2)}</td>
                           <td className="py-4">
                             <div className="flex flex-col gap-1 text-[10px]">
                               <span className="font-bold">Order: <span className="text-violet-400 uppercase">{ord.orderStatus}</span></span>
@@ -971,7 +971,7 @@ export default function AdminDashboard() {
                             </td>
                             <td className="py-3 text-slate-450">${c.minOrderAmount}</td>
                             <td className="py-3 text-center text-slate-400">
-                              {c._count?.usages || 0} {c.usageLimit ? `/ ${c.usageLimit}` : ''}
+                              {(c as any)._count?.usages || 0} {c.usageLimit ? `/ ${c.usageLimit}` : ''}
                             </td>
                             <td className="py-3 text-right">
                               <button

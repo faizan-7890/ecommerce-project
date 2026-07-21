@@ -39,7 +39,7 @@ export default function WishlistPage() {
     try {
       const data = await api.get('/wishlist');
       setWishlist(data);
-    } catch (err: unknown) {
+    } catch (err: any) {
       const error = err as Error;
       setError(error.message || 'Failed to load wishlist items');
     } finally {
@@ -60,7 +60,7 @@ export default function WishlistPage() {
     try {
       await api.delete(`/wishlist/${productId}`);
       setWishlist((prev) => prev.filter((item) => item.productId !== productId));
-    } catch (err: unknown) {
+    } catch (err: any) {
       const error = err as Error;
       addToast(error.message || 'Failed to remove product from wishlist', 'error');
     }

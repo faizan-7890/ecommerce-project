@@ -119,7 +119,7 @@ export default function ProductDetailPage() {
       await addToCart(product.id, variantId, quantity);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
-    } catch (err: unknown) {
+    } catch (err: any) {
       const error = err as Error;
       addToast(error.message || 'Failed to add items to cart', 'error');
     } finally {

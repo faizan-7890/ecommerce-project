@@ -62,7 +62,7 @@ export default function AdminChart({ data }: AdminChartProps) {
               contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '12px', color: '#f8fafc' }}
               itemStyle={{ color: '#c084fc', fontWeight: 'bold' }}
               labelStyle={{ color: '#94a3b8', marginBottom: '4px' }}
-              formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']}
+              formatter={(value: any) => [`$${Number(value).toFixed(2)}`, 'Revenue']}
             />
             <Area 
               type="monotone" 

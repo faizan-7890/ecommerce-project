@@ -64,7 +64,7 @@ export default function ProfilePage() {
     try {
       const data = await api.get('/users/addresses');
       setAddresses(data);
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error('Error fetching addresses:', err);
     } finally {
       setAddressLoading(false);
@@ -126,7 +126,7 @@ export default function ProfilePage() {
 
       resetAddressForm();
       await loadAddresses();
-    } catch (err: unknown) {
+    } catch (err: any) {
       const error = err as Error;
       setError(error.message || 'Failed to process address card');
     } finally {
@@ -156,7 +156,7 @@ export default function ProfilePage() {
       await api.delete(`/users/addresses/${addrId}`);
       setSuccess('Address deleted successfully.');
       await loadAddresses();
-    } catch (err: unknown) {
+    } catch (err: any) {
       const error = err as Error;
       setError(error.message || 'Failed to delete address card');
     } finally {
@@ -169,7 +169,7 @@ export default function ProfilePage() {
     try {
       await api.put(`/users/addresses/${addrId}`, { isDefault: true });
       await loadAddresses();
-    } catch (err: unknown) {
+    } catch (err: any) {
       const error = err as Error;
       setError(error.message || 'Failed to set default address');
     } finally {

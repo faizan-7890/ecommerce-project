@@ -27,7 +27,7 @@ export default function ForgotPasswordPage() {
         message: string;
       };
       setSuccess(data.message || 'If this email exists in our records, a reset link will be sent.');
-    } catch (err: unknown) {
+    } catch (err: any) {
       const message = err instanceof Error ? err.message : 'Request failed';
       setError(message);
     } finally {

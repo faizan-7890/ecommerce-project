@@ -43,7 +43,7 @@ function ResetPasswordForm() {
       };
       setSuccess(data.message || 'Password has been reset successfully');
       setTimeout(() => router.push('/login'), 1500);
-    } catch (err: unknown) {
+    } catch (err: any) {
       const message = err instanceof Error ? err.message : 'Reset failed';
       setError(message);
     } finally {
