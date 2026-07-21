@@ -4,14 +4,14 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { useAuth } from '@/context/AuthContext';
+import { useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
 import { Product, Category, Order, Coupon, ProductVariant } from '@/types';
 import AdminChart from '@/components/AdminChart';
 
 export default function AdminDashboard() {
-  const { user } = useAuth();
+  const { user, isLoaded, isSignedIn } = useUser();
   const router = useRouter();
   const { addToast } = useToast();
 
@@ -74,14 +74,14 @@ export default function AdminDashboard() {
 
   // Redirect if not admin
   useEffect(() => {
-    if (user && user.role !== 'ADMIN') {
+    if (isLoaded && (!isSignedIn || user?.publicMetadata?.role !== 'ADMIN')) {
       router.push('/');
     }
-  }, [user]);
+  }, [user, isLoaded, isSignedIn, router]);
 
   // Load Data based on Active Tab
   useEffect(() => {
-    if (!user || user.role !== 'ADMIN') return;
+    if (!isSignedIn || user?.publicMetadata?.role !== 'ADMIN') return;
 
     if (activeTab === 'overview') {
       loadStats();
@@ -355,7 +355,7 @@ export default function AdminDashboard() {
     }
   };
 
-  if (!user || user.role !== 'ADMIN') {
+  if (!isLoaded || !isSignedIn || user?.publicMetadata?.role !== 'ADMIN') {
     return (
       <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
         <Header />

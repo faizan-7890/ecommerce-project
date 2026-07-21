@@ -7,7 +7,6 @@ const { assertPaymentConfigForEnvironment } = require('./src/config/payments');
 const { assertJwtSecret } = require('./src/config/jwt');
 const { prisma } = require('./src/config/db');
 
-const authRoutes = require('./src/routes/auth');
 const userRoutes = require('./src/routes/users');
 const productRoutes = require('./src/routes/products');
 const categoryRoutes = require('./src/routes/categories');
@@ -75,7 +74,6 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);

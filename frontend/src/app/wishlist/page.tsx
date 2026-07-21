@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { api } from '@/lib/api';
-import { useAuth } from '@/context/AuthContext';
+import { useUser } from '@clerk/nextjs';
 import { useToast } from '@/context/ToastContext';
 import { formatCurrency } from '@/lib/currency';
 
@@ -27,7 +27,7 @@ interface WishlistItem {
 }
 
 export default function WishlistPage() {
-  const { user } = useAuth();
+  const { isSignedIn, isLoaded } = useUser();
   const router = useRouter();
   const { addToast } = useToast();
 
@@ -48,14 +48,13 @@ export default function WishlistPage() {
   };
 
   useEffect(() => {
-    if (!user) {
-      router.push('/login');
+    if (isLoaded && !isSignedIn) {
+      router.push('/');
       return;
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadWishlist();
+    if (isSignedIn) loadWishlist();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [isSignedIn, isLoaded, router]);
 
   const handleRemoveFromWishlist = async (productId: number) => {
     try {
@@ -74,7 +73,7 @@ export default function WishlistPage() {
     router.push(`/products/${product.id}`);
   };
 
-  if (!user) {
+  if (!isLoaded || !isSignedIn) {
     return (
       <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
         <Header />

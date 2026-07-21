@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useCart } from '@/context/CartContext';
-import { useAuth } from '@/context/AuthContext';
+import { useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
 
 interface Address {
@@ -24,7 +24,7 @@ interface Address {
 
 export default function CheckoutPage() {
   const { cart, refreshCart } = useCart();
-  const { user } = useAuth();
+  const { user, isLoaded, isSignedIn } = useUser();
   const router = useRouter();
 
   // Address State
@@ -76,18 +76,20 @@ export default function CheckoutPage() {
   };
 
   useEffect(() => {
-    if (!user) {
-      router.push('/login');
+    if (isLoaded && !isSignedIn) {
+      router.push('/');
       return;
     }
     if (cart && cart.items.length === 0) {
       router.push('/cart');
       return;
     }
-    loadAddresses();
-  }, [user, cart]);
+    if (isSignedIn) {
+      loadAddresses();
+    }
+  }, [isSignedIn, isLoaded, cart, router]);
 
-  if (!user || !cart || cart.items.length === 0) {
+  if (!isLoaded || !isSignedIn || !cart || cart.items.length === 0) {
     return (
       <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
         <Header />
@@ -233,8 +235,8 @@ export default function CheckoutPage() {
             }
           },
           prefill: {
-            name: user?.name || '',
-            email: user?.email || '',
+            name: user?.fullName || '',
+            email: user?.primaryEmailAddress?.emailAddress || '',
           },
           theme: {
             color: '#8B5CF6',

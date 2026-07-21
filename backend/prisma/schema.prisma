@@ -16,6 +16,7 @@ model Role {
 
 model User {
   id                  Int                  @id @default(autoincrement())
+  clerkId             String?              @unique
   name                String
   email               String               @unique
   password            String

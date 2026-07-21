@@ -5,13 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { useAuth } from '@/context/AuthContext';
+import { useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
 import Image from 'next/image';
 
 export default function OrdersPage() {
-  const { user } = useAuth();
+  const { isLoaded, isSignedIn } = useUser();
   const router = useRouter();
   const { addToast } = useToast();
 
@@ -30,14 +30,14 @@ export default function OrdersPage() {
   };
 
   useEffect(() => {
-    if (!user) {
-      router.push('/login');
-    } else {
+    if (isLoaded && !isSignedIn) {
+      router.push('/');
+    } else if (isSignedIn) {
       loadOrders();
     }
-  }, [user]);
+  }, [isSignedIn, isLoaded, router]);
 
-  if (!user) {
+  if (!isLoaded || !isSignedIn) {
     return (
       <div className="flex flex-col min-h-screen">
         <Header />

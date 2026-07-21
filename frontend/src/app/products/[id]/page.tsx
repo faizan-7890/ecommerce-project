@@ -6,7 +6,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { api } from '@/lib/api';
 import { useCart } from '@/context/CartContext';
-import { useAuth } from '@/context/AuthContext';
+import { useUser } from '@clerk/nextjs';
 import { useToast } from '@/context/ToastContext';
 import Image from 'next/image';
 
@@ -14,7 +14,7 @@ export default function ProductDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { addToCart } = useCart();
-  const { user } = useAuth();
+  const { user, isSignedIn } = useUser();
   const { addToast } = useToast();
 
   const [product, setProduct] = useState<any>(null);
@@ -64,7 +64,7 @@ export default function ProductDetailPage() {
       setReviews(reviewsData);
 
       // Verify if current user is a verified buyer (backend field is orderStatus)
-      if (user) {
+      if (isSignedIn) {
         const userOrders = (await api.get('/orders')) as Array<{
           orderStatus: string;
           items: Array<{ productId: number }>;
@@ -102,8 +102,8 @@ export default function ProductDetailPage() {
   }, [selectedSize, selectedColor, product]);
 
   const handleAddToCart = async () => {
-    if (!user) {
-      router.push('/login');
+    if (!isSignedIn) {
+      router.push('/sign-in');
       return;
     }
 

@@ -2,12 +2,12 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import MiniCart from '@/components/MiniCart';
+import { SignInButton, UserButton, useUser } from '@clerk/nextjs';
 
 export default function Header() {
-  const { user, logout } = useAuth();
+  const { user, isSignedIn } = useUser();
   const { cart } = useCart();
   const [isCartOpen, setIsCartOpen] = useState(false);
 
@@ -59,44 +59,30 @@ export default function Header() {
           </button>
 
           {/* User Links */}
-          {user ? (
+          {isSignedIn ? (
             <div className="flex items-center gap-4">
-              {user.role === 'ADMIN' ? (
-                <Link
-                  href="/admin"
-                  className="rounded-full bg-slate-800 px-4 py-1.5 text-xs font-semibold text-violet-400 border border-violet-500/20 hover:bg-slate-700 transition-all duration-200"
-                >
-                  Admin Panel
-                </Link>
-              ) : (
-                <Link
-                  href="/profile"
-                  className="text-sm font-medium text-slate-300 hover:text-white transition-colors duration-200"
-                >
-                  My Profile
+              <Link href="/profile" className="text-sm font-semibold text-slate-300 hover:text-white transition-colors duration-200">
+                Hi, {user?.firstName || 'User'}
+              </Link>
+              {user?.publicMetadata?.role === 'ADMIN' && (
+                <Link href="/admin" className="rounded-lg bg-violet-500/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-violet-400 hover:bg-violet-500/20 hover:text-violet-300 transition-colors duration-200 border border-violet-500/20">
+                  Admin
                 </Link>
               )}
-              <button
-                onClick={logout}
-                className="text-sm font-medium text-slate-400 hover:text-red-400 transition-colors duration-200"
-              >
-                Logout
-              </button>
+              <UserButton afterSignOutUrl="/" appearance={{ elements: { userButtonAvatarBox: 'w-8 h-8 rounded-full border border-slate-700' } }} />
             </div>
           ) : (
-            <div className="flex items-center gap-3">
-              <Link
-                href="/login"
-                className="text-sm font-medium text-slate-300 hover:text-white transition-colors duration-200"
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/register"
-                className="rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-violet-500/20 hover:opacity-90 transition-all duration-200"
-              >
-                Register
-              </Link>
+            <div className="flex items-center gap-4">
+              <SignInButton mode="modal">
+                <button className="text-sm font-semibold text-slate-300 hover:text-white transition-colors duration-200">
+                  Sign in
+                </button>
+              </SignInButton>
+              <SignInButton mode="modal">
+                <button className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-900 shadow-md hover:bg-white hover:-translate-y-0.5 transition-all duration-200">
+                  Create account
+                </button>
+              </SignInButton>
             </div>
           )}
         </div>

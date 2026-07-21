@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { useAuth } from './AuthContext';
+import { useUser } from '@clerk/nextjs';
 
 interface CartItem {
   id: number;
@@ -41,12 +41,12 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { isSignedIn, isLoaded } = useUser();
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(false);
 
   const refreshCart = useCallback(async () => {
-    if (!user) return;
+    if (!isSignedIn) return;
     setLoading(true);
     try {
       const data = await api.get('/cart');
@@ -56,19 +56,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [isSignedIn]);
 
   useEffect(() => {
-    if (user) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isLoaded && isSignedIn) {
       refreshCart();
-    } else {
+    } else if (isLoaded && !isSignedIn) {
       setCart(null);
     }
-  }, [user, refreshCart]);
+  }, [isSignedIn, isLoaded, refreshCart]);
 
   const addToCart = async (productId: number, variantId: number | null = null, quantity: number = 1) => {
-    if (!user) {
+    if (!isSignedIn) {
       throw new Error('Please login to add items to cart');
     }
     setLoading(true);

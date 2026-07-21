@@ -6,23 +6,23 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useCart } from '@/context/CartContext';
-import { useAuth } from '@/context/AuthContext';
+import { useUser } from '@clerk/nextjs';
 import { useToast } from '@/context/ToastContext';
 import Image from 'next/image';
 
 export default function CartPage() {
   const { cart, updateQuantity, removeFromCart, loading } = useCart();
-  const { user } = useAuth();
+  const { isSignedIn, isLoaded } = useUser();
   const router = useRouter();
   const { addToast } = useToast();
 
   React.useEffect(() => {
-    if (!user) {
-      router.push('/login');
+    if (isLoaded && !isSignedIn) {
+      router.push('/');
     }
-  }, [user]);
+  }, [isSignedIn, isLoaded, router]);
 
-  if (!user) {
+  if (!isLoaded || !isSignedIn) {
     return (
       <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
         <Header />

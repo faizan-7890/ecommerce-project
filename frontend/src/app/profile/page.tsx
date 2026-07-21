@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { useAuth } from '@/context/AuthContext';
+import { useUser, UserProfile } from '@clerk/nextjs';
 import { api } from '@/lib/api';
 
 interface Address {
@@ -23,17 +23,10 @@ interface Address {
 }
 
 export default function ProfilePage() {
-  const { user, refreshUser } = useAuth();
+  const { user, isLoaded, isSignedIn } = useUser();
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<'profile' | 'addresses'>('profile');
-
-  // Profile Form State
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
 
   // Addresses State
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -59,14 +52,10 @@ export default function ProfilePage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!user) {
-      router.push('/login');
-    } else {
-      setName(user.name);
-      setEmail(user.email);
+    if (isLoaded && !isSignedIn) {
+      router.push('/');
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
-  }, [user]);
+  }, [isLoaded, isSignedIn, router]);
 
   // Load Addresses
   const loadAddresses = async () => {
@@ -102,47 +91,7 @@ export default function ProfilePage() {
     );
   }
 
-  // Update Profile & Password Handler
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
 
-    if (newPassword && newPassword !== confirmPassword) {
-      setError('New passwords do not match');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // 1. Update basic information
-      await api.put('/users/profile', { name, email });
-      
-      // 2. Update password if requested
-      if (newPassword) {
-        if (!currentPassword) {
-          setError('Please provide current password to update your password');
-          setLoading(false);
-          return;
-        }
-        await api.put('/users/password', {
-          currentPassword,
-          newPassword,
-        });
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-      }
-
-      await refreshUser();
-      setSuccess('Profile details updated successfully!');
-    } catch (err: unknown) {
-      const error = err as Error;
-      setError(error.message || 'Failed to update profile info');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Add or Edit Address Submit Handler
   const handleAddressSubmit = async (e: React.FormEvent) => {
@@ -306,82 +255,16 @@ export default function ProfilePage() {
             )}
 
             {activeTab === 'profile' ? (
-              <>
-                <h2 className="text-2xl font-extrabold text-white">Profile Settings</h2>
-                <p className="text-sm text-slate-450 mt-1">Manage your account information and password.</p>
-
-                <form onSubmit={handleUpdateProfile} className="mt-8 space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Full Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="mt-2 w-full rounded-xl border border-slate-850 bg-slate-950 px-4 py-3 text-sm text-slate-200 focus:border-violet-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Email Address</label>
-                      <input
-                        type="email"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="mt-2 w-full rounded-xl border border-slate-850 bg-slate-950 px-4 py-3 text-sm text-slate-200 focus:border-violet-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-900 pt-6 space-y-6">
-                    <h3 className="text-lg font-bold text-white">Change Password</h3>
-                    <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Current Password</label>
-                      <input
-                        type="password"
-                        placeholder="••••••••"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="mt-2 w-full rounded-xl border border-slate-850 bg-slate-950 px-4 py-3 text-sm text-slate-200 focus:border-violet-500 focus:outline-none"
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                      <div>
-                        <label className="text-xs font-bold uppercase tracking-wider text-slate-400">New Password</label>
-                        <input
-                          type="password"
-                          placeholder="••••••••"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          className="mt-2 w-full rounded-xl border border-slate-850 bg-slate-950 px-4 py-3 text-sm text-slate-200 focus:border-violet-500 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Confirm New Password</label>
-                        <input
-                          type="password"
-                          placeholder="••••••••"
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="mt-2 w-full rounded-xl border border-slate-850 bg-slate-950 px-4 py-3 text-sm text-slate-200 focus:border-violet-500 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end border-t border-slate-900 pt-6">
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-6 py-3 text-sm font-bold text-white shadow-xl shadow-violet-500/10 hover:opacity-95 transition-opacity disabled:opacity-50"
-                    >
-                      {loading ? 'Saving Changes...' : 'Save Profile Changes'}
-                    </button>
-                  </div>
-                </form>
-              </>
+              <div className="flex justify-center">
+                <UserProfile 
+                  appearance={{
+                    elements: {
+                      rootBox: "w-full",
+                      card: "w-full bg-transparent shadow-none"
+                    }
+                  }}
+                />
+              </div>
             ) : (
               <>
                 <div className="flex items-center justify-between">
