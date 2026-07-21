@@ -378,7 +378,7 @@ This starts:
 
 ## 👨‍💻 Author
 
-**Faizan J** — BITS Pilani
+**Faizan J** Developer
 
 - GitHub: [@faizan-7890](https://github.com/faizan-7890)
 
