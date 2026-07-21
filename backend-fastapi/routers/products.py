@@ -90,29 +90,47 @@ def list_products(
     )
 
 
+# ─── Get Product by Slug ─────────────────────────────────────────────────────
+@router.get("/slug/{slug}", response_model=ProductOut)
+def get_product_by_slug(slug: str, db: Session = Depends(get_db)):
+    """Lookup a product by its URL-friendly slug. Useful for SEO-friendly routing."""
+    product = (
+        db.query(Product)
+        .options(joinedload(Product.images), joinedload(Product.category), joinedload(Product.variants))
+        .filter(Product.slug == slug, Product.status == "active")
+        .first()
+    )
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
 # ─── Get Product Detail ─────────────────────────────────────────────────────
 @router.get("/{product_id}", response_model=ProductOut)
 def get_product(product_id: str, db: Session = Depends(get_db)):
+    """Lookup a product by numeric ID or slug."""
     try:
         pid = int(product_id)
         product = (
             db.query(Product)
             .options(joinedload(Product.images), joinedload(Product.category), joinedload(Product.variants))
-            .filter(Product.id == pid)
+            .filter(Product.id == pid, Product.status == "active")
             .first()
         )
     except ValueError:
+        # Treat as slug fallback
         product = (
             db.query(Product)
             .options(joinedload(Product.images), joinedload(Product.category), joinedload(Product.variants))
-            .filter(Product.slug == product_id)
+            .filter(Product.slug == product_id, Product.status == "active")
             .first()
         )
 
-    if not product or product.status != "active":
+    if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
     return product
+
 
 
 # ─── Create Product ──────────────────────────────────────────────────────────
