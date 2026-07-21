@@ -142,9 +142,17 @@ export default function OrdersPage() {
                         <span className="text-xs text-slate-500">Total Charged</span>
                         <span className="block font-extrabold text-white">{formatCurrency(parseFloat(order.total))}</span>
                       </div>
-                      <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${getStatusBadge(order.orderStatus)}`}>
-                        {order.orderStatus}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${getStatusBadge(order.orderStatus)}`}>
+                          {order.orderStatus}
+                        </span>
+                        <Link
+                          href={`/orders/${order.id}`}
+                          className="rounded-lg bg-violet-600/10 border border-violet-500/20 px-3 py-1 text-xs font-bold text-violet-400 hover:bg-violet-600 hover:text-white transition-all"
+                        >
+                          Track Order &rarr;
+                        </Link>
+                      </div>
                     </div>
 
                     {/* Order Items */}

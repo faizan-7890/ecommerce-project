@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useCart } from '@/context/CartContext';
+import { useWishlist } from '@/context/WishlistContext';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { Product } from '@/types';
@@ -11,11 +12,20 @@ import { formatCurrency } from '@/lib/currency';
 
 export default function ProductCard({ product }: { product: Product }) {
   const { addToCart } = useCart();
+  const { isInWishlist, toggleWishlist } = useWishlist();
   const { isSignedIn } = useUser();
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const isLiked = isInWishlist(product.id);
+
+  const handleWishlistToggle = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await toggleWishlist(product.id);
+  };
 
   const originalPrice = parseFloat(product.basePrice.toString());
   const discountAmount = parseFloat(product.discountPrice?.toString() || '0');
@@ -38,7 +48,7 @@ export default function ProductCard({ product }: { product: Product }) {
     }
 
     if (!isSignedIn) {
-      router.push('/sign-in'); // Nextjs route or default clerk modal
+      router.push('/sign-in');
       return;
     }
 
@@ -71,9 +81,35 @@ export default function ProductCard({ product }: { product: Product }) {
           fill
           className="object-cover object-center transition-transform duration-500 group-hover:scale-105"
         />
+
+        {/* Wishlist Heart Button */}
+        <button
+          onClick={handleWishlistToggle}
+          title={isLiked ? 'Remove from Wishlist' : 'Add to Wishlist'}
+          className={`absolute top-2 right-2 flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-md transition-all duration-300 ${
+            isLiked
+              ? 'bg-rose-500/90 text-white shadow-lg shadow-rose-500/30 scale-110'
+              : 'bg-slate-900/60 text-slate-300 hover:bg-rose-500 hover:text-white hover:scale-110'
+          }`}
+        >
+          <svg
+            className="h-4 w-4"
+            fill={isLiked ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+            />
+          </svg>
+        </button>
+
         {hasDiscount && (
           <span className="absolute top-2 left-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-2 py-0.5 text-xs font-bold text-white shadow-md">
-          Save {formatCurrency(discountAmount)}
+            Save {formatCurrency(discountAmount)}
           </span>
         )}
         {totalStock <= 0 && (
