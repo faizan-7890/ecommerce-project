@@ -1,41 +1,41 @@
 version: '3.8'
 
 services:
-  # 1. PostgreSQL Database Service
+  # 1. MySQL Database Service
   db:
-    image: postgres:15-alpine
+    image: mysql:8.0
     container_name: veloce-db
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: ecommerce
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ecommerce
+      MYSQL_USER: veloce
+      MYSQL_PASSWORD: veloce_pass
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mysqldata:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ecommerce"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  # 2. Node.js Express Backend REST API
+  # 2. FastAPI Backend REST API
   backend:
-    build: ./backend
+    build: ./backend-fastapi
     container_name: veloce-backend-api
     restart: always
     ports:
-      - "5000:5000"
+      - "8000:8000"
     environment:
-      - PORT=5000
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-ecommerce}?schema=public
+      - DATABASE_URL=mysql+pymysql://root:root@db:3306/ecommerce
+      - FRONTEND_URL=http://localhost:3000
     env_file:
-      - ./backend/.env.production
+      - ./backend-fastapi/.env
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
-  pgdata:
+  mysqldata:
