@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
+import ProductSkeleton from '@/components/skeletons/ProductSkeleton';
 import { api } from '@/lib/api';
 import { Product, Category } from '@/types';
 
@@ -208,7 +209,7 @@ function ProductsContent() {
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="flex flex-col rounded-2xl bg-slate-900/40 p-4 border border-slate-900 animate-pulse h-96" />
+                <ProductSkeleton key={i} />
               ))}
             </div>
           ) : (

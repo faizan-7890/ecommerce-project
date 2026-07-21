@@ -1,13 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
+import MiniCart from '@/components/MiniCart';
 
 export default function Header() {
   const { user, logout } = useAuth();
   const { cart } = useCart();
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/80 backdrop-blur-md">
@@ -34,7 +36,7 @@ export default function Header() {
         {/* Action Buttons */}
         <div className="flex items-center gap-4">
           {/* Cart Icon */}
-          <Link href="/cart" className="relative p-2 text-slate-300 hover:text-white transition-colors duration-200">
+          <button onClick={() => setIsCartOpen(true)} className="relative p-2 text-slate-300 hover:text-white transition-colors duration-200">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
@@ -54,7 +56,7 @@ export default function Header() {
                 {cart.totalItems}
               </span>
             )}
-          </Link>
+          </button>
 
           {/* User Links */}
           {user ? (
@@ -99,6 +101,7 @@ export default function Header() {
           )}
         </div>
       </div>
+      <MiniCart isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </header>
   );
 }

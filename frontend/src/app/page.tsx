@@ -5,6 +5,9 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
+import ProductSkeleton from '@/components/skeletons/ProductSkeleton';
+import CategorySkeleton from '@/components/skeletons/CategorySkeleton';
+import { motion } from 'framer-motion';
 import { api } from '@/lib/api';
 
 export default function Home() {
@@ -40,17 +43,32 @@ export default function Home() {
           <div className="absolute top-1/4 left-1/2 -z-10 h-[400px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-violet-600/10 to-fuchsia-600/10 blur-3xl" />
           <div className="absolute top-12 left-12 -z-10 h-32 w-32 rounded-full bg-violet-500/5 blur-2xl" />
           
-          <div className="mx-auto max-w-4xl text-center">
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="mx-auto max-w-4xl text-center"
+          >
             <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl text-white">
               The Future of{' '}
               <span className="bg-gradient-to-r from-violet-400 via-fuchsia-500 to-pink-500 bg-clip-text text-transparent">
                 Premium Shopping
               </span>
             </h1>
-            <p className="mt-6 text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+              className="mt-6 text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed"
+            >
               Explore our handpicked curation of elite fashion, timeless accessories, and groundbreaking gadgets. Designed for the bold.
-            </p>
-            <div className="mt-10 flex items-center justify-center gap-6">
+            </motion.p>
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
+              className="mt-10 flex items-center justify-center gap-6"
+            >
               <Link
                 href="/products"
                 className="rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-6 py-3.5 text-base font-semibold text-white shadow-xl shadow-violet-500/20 hover:opacity-90 transition-all duration-200 hover:-translate-y-0.5"
@@ -63,8 +81,8 @@ export default function Home() {
               >
                 Learn more <span aria-hidden="true">→</span>
               </a>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </section>
 
         {/* Categories Section */}
@@ -78,7 +96,7 @@ export default function Home() {
             {loading ? (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-24 rounded-2xl bg-slate-900/60 animate-pulse border border-slate-900" />
+                  <CategorySkeleton key={i} />
                 ))}
               </div>
             ) : (
@@ -127,7 +145,7 @@ export default function Home() {
             {loading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="flex flex-col rounded-2xl bg-slate-900/40 p-4 border border-slate-900 animate-pulse h-96" />
+                  <ProductSkeleton key={i} />
                 ))}
               </div>
             ) : (
