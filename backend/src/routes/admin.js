@@ -162,8 +162,24 @@ router.get('/stats', async (req, res) => {
         createdAt: { gte: start, lte: end },
         orderStatus: { not: 'cancelled' },
       },
-      select: { total: true },
+      select: { total: true, createdAt: true },
     });
+    
+    // Build time series data
+    const timeSeriesMap = {};
+    activeOrders.forEach((o) => {
+      const dateStr = o.createdAt.toISOString().split('T')[0];
+      if (!timeSeriesMap[dateStr]) timeSeriesMap[dateStr] = 0;
+      timeSeriesMap[dateStr] += parseFloat(o.total);
+    });
+    
+    const timeSeriesData = Object.keys(timeSeriesMap)
+      .sort()
+      .map(date => ({
+        date,
+        revenue: parseFloat(timeSeriesMap[date].toFixed(2))
+      }));
+
     const revenue = activeOrders.reduce((acc, o) => acc + parseFloat(o.total), 0);
 
     const totalOrdersCount = await prisma.order.count({
@@ -261,6 +277,7 @@ router.get('/stats', async (req, res) => {
         totalProducts: totalProductsCount,
         totalCustomers: totalCustomersCount,
       },
+      timeSeriesData,
       orderMetrics: {
         pendingOrders: pendingOrdersCount,
         cancelledOrders: cancelledOrdersCount,

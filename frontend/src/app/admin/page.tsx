@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
 import { Product, Category, Order, Coupon, ProductVariant } from '@/types';
+import AdminChart from '@/components/AdminChart';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -470,6 +471,11 @@ export default function AdminDashboard() {
                         {stats.salesSummary.totalCustomers}
                       </span>
                     </div>
+                  </div>
+
+                  {/* Revenue Chart */}
+                  <div className="w-full">
+                    <AdminChart data={stats.timeSeriesData || []} />
                   </div>
 
                   {/* More metrics */}
