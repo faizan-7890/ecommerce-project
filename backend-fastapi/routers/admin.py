@@ -195,27 +195,38 @@ def list_all_products(
 # ─── All Categories with product count ───────────────────────────────────────
 @router.get("/categories")
 def list_categories_admin(db: Session = Depends(get_db), user: User = Depends(require_admin)):
-    cats = db.query(Category).all()
-    result = []
-    for c in cats:
-        count = db.query(Product).filter(Product.category_id == c.id).count()
-        result.append({
-            "id": c.id,
-            "name": c.name,
-            "description": c.description,
+    # Single aggregated query — avoids N+1 COUNT queries
+    rows = (
+        db.query(Category, func.count(Product.id).label("product_count"))
+        .outerjoin(Product, Product.category_id == Category.id)
+        .group_by(Category.id)
+        .all()
+    )
+    return [
+        {
+            "id": cat.id,
+            "name": cat.name,
+            "description": cat.description,
             "_count": {"products": count},
-        })
-    return result
+        }
+        for cat, count in rows
+    ]
 
 
 # ─── All Coupons with usage count ────────────────────────────────────────────
 @router.get("/coupons")
 def list_coupons_admin(db: Session = Depends(get_db), user: User = Depends(require_admin)):
-    coupons = db.query(Coupon).order_by(Coupon.created_at.desc()).all()
-    result = []
-    for c in coupons:
-        usage_count = db.query(CouponUsage).filter(CouponUsage.coupon_id == c.id).count()
-        result.append({
+    from models import CouponUsage
+    # Single aggregated query — avoids N+1 COUNT queries
+    rows = (
+        db.query(Coupon, func.count(CouponUsage.id).label("usage_count"))
+        .outerjoin(CouponUsage, CouponUsage.coupon_id == Coupon.id)
+        .group_by(Coupon.id)
+        .order_by(Coupon.created_at.desc())
+        .all()
+    )
+    return [
+        {
             "id": c.id,
             "code": c.code,
             "discountType": c.discount_type,
@@ -225,5 +236,6 @@ def list_coupons_admin(db: Session = Depends(get_db), user: User = Depends(requi
             "expirationDate": c.expiration_date.isoformat() if c.expiration_date else None,
             "isActive": c.is_active,
             "_count": {"usages": usage_count},
-        })
-    return result
+        }
+        for c, usage_count in rows
+    ]

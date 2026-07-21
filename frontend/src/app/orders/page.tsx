@@ -9,6 +9,7 @@ import { useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
 import Image from 'next/image';
+import { formatCurrency } from '@/lib/currency';
 
 export default function OrdersPage() {
   const { isLoaded, isSignedIn } = useUser();
@@ -139,7 +140,7 @@ export default function OrdersPage() {
                       </div>
                       <div className="space-y-1 text-right">
                         <span className="text-xs text-slate-500">Total Charged</span>
-                        <span className="block font-extrabold text-white">${parseFloat(order.total).toFixed(2)}</span>
+                        <span className="block font-extrabold text-white">{formatCurrency(parseFloat(order.total))}</span>
                       </div>
                       <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${getStatusBadge(order.orderStatus)}`}>
                         {order.orderStatus}

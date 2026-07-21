@@ -57,8 +57,13 @@ const customFetch = async (endpoint: string, options: RequestInit = {}): Promise
   const res = await fetch(url, mergedOptions);
 
   if (!res.ok) {
-    const err = (await parseJsonSafe(res)) as { message?: string };
-    throw new ApiError(err.message || 'API request failed', res.status);
+    const err = (await parseJsonSafe(res)) as { message?: string; detail?: any };
+    const detailMessage = typeof err.detail === 'string'
+      ? err.detail
+      : Array.isArray(err.detail) && err.detail[0]?.msg
+      ? err.detail[0].msg
+      : undefined;
+    throw new ApiError(detailMessage || err.message || 'API request failed', res.status);
   }
 
   if (res.status === 204) return null;

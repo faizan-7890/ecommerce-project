@@ -8,7 +8,7 @@ class BaseModel(PydanticBaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        from_attributes=True
+        from_attributes=True,  # all child schemas inherit ORM mode
     )
 from typing import Optional, List
 from datetime import datetime
@@ -24,7 +24,6 @@ class MessageResponse(BaseModel):
 class RoleOut(BaseModel):
     id: int
     name: str
-    model_config = {"from_attributes": True}
 
 
 # ─── User ────────────────────────────────────────────────────────────────────
@@ -36,7 +35,6 @@ class UserOut(BaseModel):
     role: RoleOut
     email_verified: bool
     created_at: datetime
-    model_config = {"from_attributes": True}
 
 
 class UserUpdate(BaseModel):
@@ -58,6 +56,20 @@ class AddressCreate(BaseModel):
     is_default: bool = False
 
 
+class AddressUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    address_type: Optional[str] = None
+    is_default: Optional[bool] = None
+
+
+
 class AddressOut(BaseModel):
     id: int
     full_name: str
@@ -70,7 +82,6 @@ class AddressOut(BaseModel):
     country: str
     address_type: str
     is_default: bool
-    model_config = {"from_attributes": True}
 
 
 # ─── Category ────────────────────────────────────────────────────────────────
@@ -83,7 +94,6 @@ class CategoryOut(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
-    model_config = {"from_attributes": True}
 
 
 # ─── Product Image ───────────────────────────────────────────────────────────
@@ -91,7 +101,6 @@ class ProductImageOut(BaseModel):
     id: int
     url: str
     product_id: int
-    model_config = {"from_attributes": True}
 
 
 class ProductImageCreate(BaseModel):
@@ -126,7 +135,6 @@ class ProductVariantOut(BaseModel):
     size: Optional[str] = None
     color: Optional[str] = None
     material: Optional[str] = None
-    model_config = {"from_attributes": True}
 
 
 # ─── Product ─────────────────────────────────────────────────────────────────
@@ -175,7 +183,6 @@ class ProductOut(BaseModel):
     variants: List[ProductVariantOut] = []
     created_at: datetime
     updated_at: datetime
-    model_config = {"from_attributes": True}
 
 
 class ProductListResponse(BaseModel):
@@ -204,14 +211,12 @@ class CartItemOut(BaseModel):
     quantity: int
     product: Optional[ProductOut] = None
     variant: Optional[ProductVariantOut] = None
-    model_config = {"from_attributes": True}
 
 
 class CartOut(BaseModel):
     id: int
     user_id: int
     items: List[CartItemOut] = []
-    model_config = {"from_attributes": True}
 
 
 # ─── Order ───────────────────────────────────────────────────────────────────
@@ -231,7 +236,6 @@ class OrderItemOut(BaseModel):
     quantity: int
     product: Optional[ProductOut] = None
     variant: Optional[ProductVariantOut] = None
-    model_config = {"from_attributes": True}
 
 
 class PaymentOut(BaseModel):
@@ -243,7 +247,6 @@ class PaymentOut(BaseModel):
     razorpay_order_id: Optional[str] = None
     razorpay_payment_id: Optional[str] = None
     created_at: datetime
-    model_config = {"from_attributes": True}
 
 
 class RefundOut(BaseModel):
@@ -255,7 +258,6 @@ class RefundOut(BaseModel):
     status: str
     razorpay_refund_id: Optional[str] = None
     created_at: datetime
-    model_config = {"from_attributes": True}
 
 
 class OrderOut(BaseModel):
@@ -278,7 +280,6 @@ class OrderOut(BaseModel):
     payments: List[PaymentOut] = []
     refunds: List[RefundOut] = []
     created_at: datetime
-    model_config = {"from_attributes": True}
 
 
 # ─── Review ──────────────────────────────────────────────────────────────────
@@ -297,7 +298,6 @@ class ReviewOut(BaseModel):
     comment: Optional[str] = None
     created_at: datetime
     user: Optional[UserOut] = None
-    model_config = {"from_attributes": True}
 
 
 # ─── Wishlist ────────────────────────────────────────────────────────────────
@@ -310,7 +310,6 @@ class WishlistItemOut(BaseModel):
     product_id: int
     product: Optional[ProductOut] = None
     created_at: datetime
-    model_config = {"from_attributes": True}
 
 
 # ─── Coupon ──────────────────────────────────────────────────────────────────
@@ -334,7 +333,6 @@ class CouponOut(BaseModel):
     expiration_date: Optional[datetime] = None
     is_active: bool
     created_at: datetime
-    model_config = {"from_attributes": True}
 
 
 class CouponValidate(BaseModel):

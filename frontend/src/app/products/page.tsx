@@ -148,7 +148,7 @@ function ProductsContent() {
 
             {/* Price Filter */}
             <form onSubmit={handlePriceApply} className="mt-6">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Price Range ($)</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Price Range (₹)</label>
               <div className="mt-2 flex items-center gap-2">
                 <input
                   type="number"

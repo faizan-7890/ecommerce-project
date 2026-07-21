@@ -9,10 +9,11 @@ import ProductSkeleton from '@/components/skeletons/ProductSkeleton';
 import CategorySkeleton from '@/components/skeletons/CategorySkeleton';
 import { motion } from 'framer-motion';
 import { api } from '@/lib/api';
+import { Category, Product } from '@/lib/types';
 
 export default function Home() {
-  const [categories, setCategories] = useState<any[]>([]);
-  const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<(Category & { _count?: { products: number } })[]>([]);
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

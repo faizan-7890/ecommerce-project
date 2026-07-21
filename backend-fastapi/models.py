@@ -2,7 +2,7 @@
 SQLAlchemy ORM Models — mirrors the Prisma schema (20 models).
 All financial fields use Numeric(10,2) for decimal precision.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime, ForeignKey, Text,
     Numeric, JSON, UniqueConstraint,

@@ -9,6 +9,7 @@ import { useCart } from '@/context/CartContext';
 import { useUser } from '@clerk/nextjs';
 import { useToast } from '@/context/ToastContext';
 import Image from 'next/image';
+import { formatCurrency } from '@/lib/currency';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
@@ -59,22 +60,31 @@ export default function ProductDetailPage() {
         setSelectedVariant(firstVariant);
       }
 
-      // Fetch Reviews
-      const reviewsData = await api.get(`/reviews/${data.id}`);
-      setReviews(reviewsData);
+      // Fetch Reviews safely
+      try {
+        const reviewsData = await api.get(`/reviews/${data.id}`);
+        setReviews(reviewsData || []);
+      } catch (revErr) {
+        console.warn('Could not fetch product reviews:', revErr);
+        setReviews([]);
+      }
 
-      // Verify if current user is a verified buyer (backend field is orderStatus)
+      // Verify if current user is a verified buyer safely
       if (isSignedIn) {
-        const userOrders = (await api.get('/orders')) as Array<{
-          orderStatus: string;
-          items: Array<{ productId: number }>;
-        }>;
-        const hasDeliveredItem = userOrders.some(
-          (o) =>
-            o.orderStatus === 'delivered' &&
-            o.items.some((item) => item.productId === data.id)
-        );
-        setIsVerifiedBuyer(hasDeliveredItem);
+        try {
+          const userOrders = (await api.get('/orders')) as Array<{
+            orderStatus: string;
+            items: Array<{ productId: number }>;
+          }>;
+          const hasDeliveredItem = Array.isArray(userOrders) && userOrders.some(
+            (o) =>
+              o.orderStatus === 'delivered' &&
+              o.items.some((item) => item.productId === data.id)
+          );
+          setIsVerifiedBuyer(hasDeliveredItem);
+        } catch (ordErr) {
+          console.warn('Could not fetch user orders for verification:', ordErr);
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Product not found');
@@ -247,18 +257,18 @@ export default function ProductDetailPage() {
                 {hasDiscount ? (
                   <>
                     <span className="text-2xl font-extrabold text-white">
-                      ${finalPrice.toFixed(2)}
+                      {formatCurrency(finalPrice)}
                     </span>
                     <span className="text-lg text-slate-500 line-through">
-                      ${basePrice.toFixed(2)}
+                      {formatCurrency(basePrice)}
                     </span>
                     <span className="rounded-md bg-violet-500/10 px-2.5 py-1 text-xs font-bold text-violet-400 border border-violet-500/20">
-                      Save ${discountVal.toFixed(0)}
+                      Save {formatCurrency(discountVal)}
                     </span>
                   </>
                 ) : (
                   <span className="text-2xl font-extrabold text-white">
-                    ${basePrice.toFixed(2)}
+                    {formatCurrency(basePrice)}
                   </span>
                 )}
               </div>

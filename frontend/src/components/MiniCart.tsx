@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '@/context/CartContext';
+import { formatCurrency } from '@/lib/currency';
 
 interface MiniCartProps {
   isOpen: boolean;
@@ -86,7 +87,7 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
                             <span className="text-xs font-semibold text-white min-w-[1rem] text-center">{item.quantity}</span>
                             <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="text-slate-400 hover:text-white">+</button>
                           </div>
-                          <span className="font-bold text-white">${finalPrice.toFixed(2)}</span>
+                          <span className="font-bold text-white">{formatCurrency(finalPrice)}</span>
                         </div>
                       </div>
                     </motion.div>
@@ -110,11 +111,11 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
               <div className="border-t border-slate-900 bg-slate-950 p-6">
                 <div className="flex justify-between text-base font-bold text-white mb-6">
                   <p>Subtotal</p>
-                  <p>${cart.items.reduce((acc, item: any) => {
+                  <p>{formatCurrency(cart.items.reduce((acc, item: any) => {
                     const price = item.variant ? parseFloat(item.variant.price?.toString() || item.product.basePrice.toString()) : parseFloat(item.product.basePrice.toString());
                     const finalPrice = price - parseFloat(item.product.discountPrice?.toString() || '0');
                     return acc + finalPrice * item.quantity;
-                  }, 0).toFixed(2)}</p>
+                  }, 0))}</p>
                 </div>
                 <Link
                   href="/cart"

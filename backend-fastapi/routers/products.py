@@ -189,7 +189,15 @@ def update_product(
 
     update_data = data.model_dump(exclude_unset=True)
     if "name" in update_data:
-        update_data["slug"] = slugify(update_data["name"])
+        new_slug = slugify(update_data["name"])
+        # Check slug uniqueness (exclude the current product)
+        slug_conflict = db.query(Product).filter(
+            Product.slug == new_slug, Product.id != product_id
+        ).first()
+        if slug_conflict:
+            # Append timestamp to make it unique
+            new_slug = f"{new_slug}-{int(time.time())}"
+        update_data["slug"] = new_slug
 
     for key, value in update_data.items():
         setattr(product, key, value)

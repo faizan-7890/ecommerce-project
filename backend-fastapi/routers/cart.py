@@ -1,5 +1,7 @@
 """
 Cart router — add, update, remove, clear.
+All mutating endpoints return the full CartOut so the frontend
+can call setCart(data) directly without a follow-up refresh.
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,6 +24,19 @@ def _get_or_create_cart(db: Session, user_id: int) -> Cart:
     return cart
 
 
+def _fetch_full_cart(db: Session, cart_id: int) -> Cart:
+    """Return a fully-loaded CartOut object (used by all mutating endpoints)."""
+    return (
+        db.query(Cart)
+        .options(
+            joinedload(Cart.items).joinedload(CartItem.product).joinedload(Product.images),
+            joinedload(Cart.items).joinedload(CartItem.variant),
+        )
+        .filter(Cart.id == cart_id)
+        .first()
+    )
+
+
 @router.get("", response_model=CartOut)
 def get_cart(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     cart = _get_or_create_cart(db, user.id)
@@ -37,7 +52,7 @@ def get_cart(db: Session = Depends(get_db), user: User = Depends(get_current_use
     return cart
 
 
-@router.post("/items", response_model=CartItemOut, status_code=201)
+@router.post("/items", response_model=CartOut, status_code=201)
 def add_to_cart(
     data: CartItemCreate,
     db: Session = Depends(get_db),
@@ -67,9 +82,6 @@ def add_to_cart(
 
     if existing:
         existing.quantity += data.quantity
-        db.commit()
-        db.refresh(existing)
-        return existing
     else:
         item = CartItem(
             cart_id=cart.id,
@@ -78,12 +90,12 @@ def add_to_cart(
             quantity=data.quantity,
         )
         db.add(item)
-        db.commit()
-        db.refresh(item)
-        return item
+
+    db.commit()
+    return _fetch_full_cart(db, cart.id)
 
 
-@router.put("/items/{item_id}", response_model=CartItemOut)
+@router.put("/items/{item_id}", response_model=CartOut)
 def update_cart_item(
     item_id: int,
     data: CartItemUpdate,
@@ -97,16 +109,14 @@ def update_cart_item(
 
     if data.quantity <= 0:
         db.delete(item)
-        db.commit()
-        return {"id": item_id, "product_id": item.product_id, "quantity": 0}
+    else:
+        item.quantity = data.quantity
 
-    item.quantity = data.quantity
     db.commit()
-    db.refresh(item)
-    return item
+    return _fetch_full_cart(db, cart.id)
 
 
-@router.delete("/items/{item_id}", response_model=MessageResponse)
+@router.delete("/items/{item_id}", response_model=CartOut)
 def remove_cart_item(
     item_id: int,
     db: Session = Depends(get_db),
@@ -119,7 +129,7 @@ def remove_cart_item(
 
     db.delete(item)
     db.commit()
-    return {"message": "Item removed from cart"}
+    return _fetch_full_cart(db, cart.id)
 
 
 @router.delete("", response_model=MessageResponse)

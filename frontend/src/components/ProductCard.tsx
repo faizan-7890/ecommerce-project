@@ -7,6 +7,7 @@ import { useCart } from '@/context/CartContext';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { Product } from '@/types';
+import { formatCurrency } from '@/lib/currency';
 
 export default function ProductCard({ product }: { product: Product }) {
   const { addToCart } = useCart();
@@ -72,7 +73,7 @@ export default function ProductCard({ product }: { product: Product }) {
         />
         {hasDiscount && (
           <span className="absolute top-2 left-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-2 py-0.5 text-xs font-bold text-white shadow-md">
-            Save ${discountAmount.toFixed(0)}
+          Save {formatCurrency(discountAmount)}
           </span>
         )}
         {totalStock <= 0 && (
@@ -102,15 +103,15 @@ export default function ProductCard({ product }: { product: Product }) {
             {hasDiscount ? (
               <>
                 <span className="text-xs text-slate-500 line-through">
-                  ${originalPrice.toFixed(2)}
+                  {formatCurrency(originalPrice)}
                 </span>
                 <span className="text-lg font-extrabold text-white">
-                  ${finalPrice.toFixed(2)}
+                  {formatCurrency(finalPrice)}
                 </span>
               </>
             ) : (
               <span className="text-lg font-extrabold text-white">
-                ${originalPrice.toFixed(2)}
+                {formatCurrency(originalPrice)}
               </span>
             )}
           </div>

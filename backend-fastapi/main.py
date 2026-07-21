@@ -44,13 +44,17 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.on_event("startup")
 def on_startup():
-    """Create database tables if MySQL is available."""
+    """Create database tables and auto-seed default products."""
     try:
         Base.metadata.create_all(bind=engine)
         print("[OK] Database tables created/verified successfully")
+        try:
+            from seed import seed_data
+            seed_data()
+        except Exception as se:
+            print(f"[WARN] Auto-seeding skipped: {se}")
     except Exception as e:
-        print(f"[WARN] Could not connect to MySQL: {e}")
-        print("   Server will start anyway. Tables will be created when DB becomes available.")
+        print(f"[WARN] Could not initialize database: {e}")
 
 
 # ─── Health Check ────────────────────────────────────────────────────────────
