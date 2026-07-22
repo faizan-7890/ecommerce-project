@@ -16,43 +16,7 @@ export type PaymentStatus =
   | 'refunded'
   | 'partially_refunded';
 
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-  emailVerified: boolean;
-}
-
-export interface ProductImage {
-  id: number;
-  url: string;
-}
-
-export interface ProductVariant {
-  id: number;
-  sku: string;
-  price: number | string | null;
-  stock: number;
-  size?: string | null;
-  color?: string | null;
-  material?: string | null;
-}
-
-export interface Product {
-  id: number;
-  name: string;
-  slug: string;
-  description: string;
-  brand?: string;
-  basePrice: number | string;
-  discountPrice?: number | string;
-  status?: string;
-  images: ProductImage[];
-  variants: ProductVariant[];
-  lowStockThreshold?: number;
-  categoryId?: number;
-}
+export type { Category, Product, ProductImage, ProductVariant, Order, OrderItem, Payment, Address, Coupon, Cart, CartItem } from '@/types';
 
 export interface OrderItem {
   id: number;
