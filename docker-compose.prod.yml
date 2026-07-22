@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # 1. MySQL 8 Database Service
+  db:
+    image: mysql:8.0
+    container_name: veloce-db-prod
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_secure_pass}
+      MYSQL_DATABASE: veloce_db
+      MYSQL_USER: ${MYSQL_USER:-veloce_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-veloce_pass}
+    ports:
+      - "3306:3306"
+    volumes:
+      - veloce_mysql_prod_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. FastAPI Production Backend (Gunicorn + Uvicorn Workers)
+  backend:
+    build:
+      context: ./backend-fastapi
+      dockerfile: Dockerfile
+    container_name: veloce-backend-prod
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-veloce_user}:${MYSQL_PASSWORD:-veloce_pass}@db:3306/veloce_db
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - NODE_ENV=production
+    env_file:
+      - ./backend-fastapi/.env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # 3. Next.js Standalone Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: veloce-frontend-prod
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://backend:8000/api
+    depends_on:
+      - backend
+
+volumes:
+  veloce_mysql_prod_data:

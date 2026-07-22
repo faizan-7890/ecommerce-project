@@ -203,12 +203,40 @@ export default function ProductDetailPage() {
   // Enforce stock bounds
   const stockAvailable = selectedVariant ? selectedVariant.stock : product.stock;
 
-  // Extract unique sizes and colors for selections
-  const sizes = Array.from(new Set(product.variants.map((v: any) => v.size).filter(Boolean)));
-  const colors = Array.from(new Set(product.variants.map((v: any) => v.color).filter(Boolean)));
+  // Generate Google Schema.org JSON-LD Structured Data
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    image: product.images?.map((i: any) => i.url) || [activeImage],
+    description: product.description,
+    brand: {
+      '@type': 'Brand',
+      name: product.brand || 'Veloce',
+    },
+    offers: {
+      '@type': 'Offer',
+      priceCurrency: 'INR',
+      price: finalPrice,
+      availability: stockAvailable > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      url: typeof window !== 'undefined' ? window.location.href : '',
+    },
+    ...(reviews.length > 0 && {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1),
+        reviewCount: reviews.length,
+      },
+    }),
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100">
+      {/* Inject Google Schema.org Product Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <Header />
 
       <main className="flex-1 py-12 px-4 sm:px-6 lg:px-8">
@@ -222,6 +250,8 @@ export default function ProductDetailPage() {
                   src={activeImage}
                   alt={product.name}
                   fill
+                  priority
+                  sizes="(max-width: 768px) 100vw, 50vw"
                   className="object-cover object-center"
                 />
               </div>
@@ -235,7 +265,7 @@ export default function ProductDetailPage() {
                         activeImage === img.url ? 'border-violet-500 bg-violet-500/10' : 'border-slate-900'
                       }`}
                     >
-                      <Image src={img.url} alt="" fill className="object-cover object-center" />
+                      <Image src={img.url} alt="" fill sizes="80px" className="object-cover object-center" />
                     </button>
                   ))}
                 </div>
