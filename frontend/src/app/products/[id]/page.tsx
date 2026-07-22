@@ -203,6 +203,10 @@ export default function ProductDetailPage() {
   // Enforce stock bounds
   const stockAvailable = selectedVariant ? selectedVariant.stock : product.stock;
 
+  // Extract unique sizes and colors for variant selections
+  const sizes = Array.from(new Set(product.variants?.map((v: any) => v.size).filter(Boolean) || []));
+  const colors = Array.from(new Set(product.variants?.map((v: any) => v.color).filter(Boolean) || []));
+
   // Generate Google Schema.org JSON-LD Structured Data
   const jsonLd = {
     '@context': 'https://schema.org',
