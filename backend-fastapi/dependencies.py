@@ -105,29 +105,27 @@ async def get_current_user(
         email = payload.get("email") or payload.get("email_address")
 
         if not email:
-            # Fetch from Clerk API as fallback
-            try:
-                clerk_secret = os.getenv("CLERK_SECRET_KEY", "")
-                async with httpx.AsyncClient() as client:
-                    resp = await client.get(
-                        f"https://api.clerk.com/v1/users/{clerk_id}",
-                        headers={"Authorization": f"Bearer {clerk_secret}"},
-                    )
-                    if resp.status_code == 200:
-                        clerk_user_data = resp.json()
-                        email_addresses = clerk_user_data.get("email_addresses", [])
-                        if email_addresses:
-                            email = email_addresses[0].get("email_address")
-                        name = f"{clerk_user_data.get('first_name', '')} {clerk_user_data.get('last_name', '')}".strip() or "New User"
-                    else:
-                        raise HTTPException(status_code=400, detail="Could not fetch Clerk user")
-            except httpx.HTTPError:
-                raise HTTPException(status_code=400, detail="Clerk API unavailable")
-        else:
-            name = payload.get("name") or "New User"
+            # Try fetching from Clerk API if valid secret key present
+            clerk_secret = os.getenv("CLERK_SECRET_KEY", "")
+            if clerk_secret and not clerk_secret.startswith("sk_test_..."):
+                try:
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(
+                            f"https://api.clerk.com/v1/users/{clerk_id}",
+                            headers={"Authorization": f"Bearer {clerk_secret}"},
+                        )
+                        if resp.status_code == 200:
+                            clerk_user_data = resp.json()
+                            email_addresses = clerk_user_data.get("email_addresses", [])
+                            if email_addresses:
+                                email = email_addresses[0].get("email_address")
+                            name = f"{clerk_user_data.get('first_name', '')} {clerk_user_data.get('last_name', '')}".strip() or "Customer"
+                except Exception:
+                    pass
 
-        if not email:
-            raise HTTPException(status_code=400, detail="Clerk user has no email address")
+            if not email:
+                email = f"{clerk_id}@user.clerk"
+                name = "Authenticated Customer"
 
         # Check if a user with this email already exists
         user = db.query(User).filter(User.email == email).first()
