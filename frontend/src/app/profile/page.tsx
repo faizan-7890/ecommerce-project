@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
@@ -47,7 +47,6 @@ export default function ProfilePage() {
   const [isDefault, setIsDefault] = useState(false);
 
   // General Notification States
-  const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
@@ -58,26 +57,32 @@ export default function ProfilePage() {
   }, [isLoaded, isSignedIn, router]);
 
   // Load Addresses
-  const loadAddresses = async () => {
+  const loadAddresses = useCallback(async () => {
     if (!user) return;
     setAddressLoading(true);
     try {
-      const data = await api.get('/users/addresses');
+      const data = await api.get<Address[]>('/users/addresses');
       setAddresses(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching addresses:', err);
     } finally {
       setAddressLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
-    if (activeTab === 'addresses') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      loadAddresses();
+    let isCancelled = false;
+    if (activeTab === 'addresses' && user) {
+      api.get<Address[]>('/users/addresses')
+        .then((data) => {
+          if (!isCancelled) setAddresses(data);
+        })
+        .catch((err) => console.error('Error fetching addresses:', err));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeTab, user]);
 
   if (!user) {
     return (
@@ -91,13 +96,12 @@ export default function ProfilePage() {
     );
   }
 
-
-
   // Add or Edit Address Submit Handler
   const handleAddressSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setAddressLoading(true);
     setSuccess('');
+    setError('');
 
     const payload = {
       fullName,
@@ -112,7 +116,6 @@ export default function ProfilePage() {
       isDefault,
     };
 
-    setAddressLoading(true);
     try {
       if (editingAddressId) {
         // Edit Address
@@ -126,9 +129,9 @@ export default function ProfilePage() {
 
       resetAddressForm();
       await loadAddresses();
-    } catch (err: any) {
-      const error = err as Error;
-      setError(error.message || 'Failed to process address card');
+    } catch (err: unknown) {
+      const errorObj = err instanceof Error ? err : new Error('Failed to process address card');
+      setError(errorObj.message);
     } finally {
       setAddressLoading(false);
     }
@@ -156,9 +159,9 @@ export default function ProfilePage() {
       await api.delete(`/users/addresses/${addrId}`);
       setSuccess('Address deleted successfully.');
       await loadAddresses();
-    } catch (err: any) {
-      const error = err as Error;
-      setError(error.message || 'Failed to delete address card');
+    } catch (err: unknown) {
+      const errorObj = err instanceof Error ? err : new Error('Failed to delete address card');
+      setError(errorObj.message);
     } finally {
       setAddressLoading(false);
     }
@@ -169,9 +172,9 @@ export default function ProfilePage() {
     try {
       await api.put(`/users/addresses/${addrId}`, { isDefault: true });
       await loadAddresses();
-    } catch (err: any) {
-      const error = err as Error;
-      setError(error.message || 'Failed to set default address');
+    } catch (err: unknown) {
+      const errorObj = err instanceof Error ? err : new Error('Failed to set default address');
+      setError(errorObj.message);
     } finally {
       setAddressLoading(false);
     }

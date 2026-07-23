@@ -105,7 +105,7 @@ export default function AdminDashboard() {
         if (startDate) query += `&startDate=${startDate}`;
         if (endDate) query += `&endDate=${endDate}`;
       }
-      const data = await api.get(`/admin/stats${query}`);
+      const data = await api.get<any>(`/admin/stats${query}`);
       setStats(data);
     } catch (err) {
       console.error('Error fetching admin stats', err);
@@ -117,7 +117,7 @@ export default function AdminDashboard() {
   const loadProducts = async () => {
     setLoadingProducts(true);
     try {
-      const data = await api.get('/products?limit=100');
+      const data = await api.get<{ products?: any[] }>('/products?limit=100');
       setProducts(data.products || []);
     } catch (err) {
       console.error('Error fetching admin products', err);
@@ -129,7 +129,7 @@ export default function AdminDashboard() {
   const loadCategories = async () => {
     setLoadingCategories(true);
     try {
-      const data = await api.get('/categories');
+      const data = await api.get<any[]>('/categories');
       setCategories(data);
     } catch (err) {
       console.error('Error fetching admin categories', err);
@@ -141,7 +141,7 @@ export default function AdminDashboard() {
   const loadAllOrders = async () => {
     setLoadingOrders(true);
     try {
-      const data = await api.get('/admin/orders');
+      const data = await api.get<any[]>('/admin/orders');
       setOrders(data);
     } catch (err) {
       console.error('Error fetching admin orders', err);
@@ -153,7 +153,7 @@ export default function AdminDashboard() {
   const loadAllCoupons = async () => {
     setLoadingCoupons(true);
     try {
-      const data = await api.get('/coupons');
+      const data = await api.get<any[]>('/coupons');
       setCoupons(data);
     } catch (err) {
       console.error('Error fetching coupons:', err);
@@ -242,7 +242,7 @@ export default function AdminDashboard() {
 
       addToast('Variant successfully added!', 'success');
       // Reload product details inside modal
-      const updatedProd = await api.get(`/products/${variantModalProduct.id}`);
+      const updatedProd = await api.get<any>(`/products/${variantModalProduct.id}`);
       setVariantModalProduct(updatedProd);
 
       // Reset variant form fields
@@ -262,7 +262,7 @@ export default function AdminDashboard() {
     try {
       await api.delete(`/products/${variantModalProduct.id}/variants/${variantId}`);
       addToast('Variant deleted', 'info');
-      const updatedProd = await api.get(`/products/${variantModalProduct.id}`);
+      const updatedProd = await api.get<any>(`/products/${variantModalProduct.id}`);
       setVariantModalProduct(updatedProd);
     } catch (err: any) {
       addToast(err.message || 'Failed to delete variant', 'error');

@@ -60,7 +60,7 @@ export default function CheckoutPage() {
 
   const loadAddresses = async () => {
     try {
-      const data = await api.get('/users/addresses');
+      const data = await api.get<Address[]>('/users/addresses');
       setAddresses(data);
       if (data.length > 0) {
         const defaultAddr = data.find((a: Address) => a.isDefault) || data[0];
@@ -110,7 +110,7 @@ export default function CheckoutPage() {
     if (!couponCode) return;
 
     try {
-      const data = await api.post('/coupons/validate', {
+      const data = await api.post<any>('/coupons/validate', {
         code: couponCode,
         subtotal: cart.subtotal,
       });
@@ -131,7 +131,7 @@ export default function CheckoutPage() {
 
     setLoading(true);
     try {
-      const newAddr = await api.post('/users/addresses', {
+      const newAddr = await api.post<Address>('/users/addresses', {
         fullName,
         phoneNumber,
         addressLine1,
@@ -189,7 +189,7 @@ export default function CheckoutPage() {
       const idempotencyKey = `idemp-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
       // 1. Place order
-      const order = await api.post('/orders', {
+      const order = await api.post<any>('/orders', {
         shippingAddressId: selectedAddressId,
         billingAddressId: selectedAddressId,
         couponCode: appliedCoupon ? appliedCoupon.code : undefined,
@@ -200,7 +200,7 @@ export default function CheckoutPage() {
 
       // 2. Open Razorpay Standard Checkout if Credit Card is selected
       if (paymentMethod === 'card') {
-        const rzpOrderData = await api.post('/payments/create-order', {
+        const rzpOrderData = await api.post<any>('/payments/create-order', {
           orderId: order.id,
         });
 
@@ -221,7 +221,7 @@ export default function CheckoutPage() {
           handler: async function (response: any) {
             setLoading(true);
             try {
-              await api.post('/payments/verify', {
+              await api.post<any>('/payments/verify', {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,

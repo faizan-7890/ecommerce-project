@@ -81,7 +81,7 @@ export default function OrderDetailPage() {
   const fetchOrderDetails = async () => {
     try {
       setLoading(true);
-      const data = await api.get(`/orders/${id}`);
+      const data = await api.get<OrderDetail>(`/orders/${id}`);
       setOrder(data);
     } catch (err: any) {
       setError(err.message || 'Failed to load order details');

@@ -19,10 +19,10 @@ export default function Home() {
   useEffect(() => {
     async function loadHomeData() {
       try {
-        const cats = await api.get('/categories');
+        const cats = await api.get<any[]>('/categories');
         setCategories(cats.slice(0, 4));
 
-        const prodData = await api.get('/products?limit=8');
+        const prodData = await api.get<{ products?: any[] }>('/products?limit=8');
         setFeaturedProducts(prodData.products || []);
       } catch (err) {
         console.error('Failed to load home page data', err);

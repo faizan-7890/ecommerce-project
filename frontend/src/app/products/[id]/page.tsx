@@ -44,7 +44,7 @@ export default function ProductDetailPage() {
   const loadProductAndReviews = async () => {
     if (!id) return;
     try {
-      const data = await api.get(`/products/${id}`);
+      const data = await api.get<any>(`/products/${id}`);
       setProduct(data);
       if (data.images && data.images.length > 0) {
         setActiveImage(data.images[0].url);
@@ -62,7 +62,7 @@ export default function ProductDetailPage() {
 
       // Fetch Reviews safely
       try {
-        const reviewsData = await api.get(`/reviews/${data.id}`);
+        const reviewsData = await api.get<any[]>(`/reviews/${data.id}`);
         setReviews(reviewsData || []);
       } catch (revErr) {
         console.warn('Could not fetch product reviews:', revErr);
@@ -155,7 +155,7 @@ export default function ProductDetailPage() {
       setRating(5);
       
       // Reload reviews list
-      const updatedReviews = await api.get(`/reviews/${product.id}`);
+      const updatedReviews = await api.get<any[]>(`/reviews/${product.id}`);
       setReviews(updatedReviews);
     } catch (err: any) {
       setReviewError(err.message || 'Failed to submit review');

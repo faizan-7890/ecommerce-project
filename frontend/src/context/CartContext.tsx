@@ -49,7 +49,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (!isSignedIn) return;
     setLoading(true);
     try {
-      const data = await api.get('/cart');
+      const data = await api.get<Cart>('/cart');
       setCart(data);
     } catch (err) {
       console.warn('Could not fetch cart:', err);
@@ -60,12 +60,29 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [isSignedIn]);
 
   useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      refreshCart();
-    } else if (isLoaded && !isSignedIn) {
-      setCart(null);
+    let isCancelled = false;
+    if (!isLoaded) return;
+
+    if (!isSignedIn) {
+      Promise.resolve().then(() => {
+        if (!isCancelled) setCart(null);
+      });
+      return;
     }
-  }, [isSignedIn, isLoaded, refreshCart]);
+
+    api.get<Cart>('/cart')
+      .then((data) => {
+        if (!isCancelled) setCart(data);
+      })
+      .catch((err) => {
+        console.warn('Could not fetch cart:', err);
+        if (!isCancelled) setCart(null);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isSignedIn, isLoaded]);
 
   const addToCart = async (productId: number, variantId: number | null = null, quantity: number = 1) => {
     if (!isSignedIn) {

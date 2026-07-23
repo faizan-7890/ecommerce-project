@@ -5,9 +5,20 @@ import { useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
 import { useToast } from './ToastContext';
 
+export interface WishlistItem {
+  id: number;
+  productId: number;
+  product?: {
+    id: number;
+    title: string;
+    price: number;
+    image?: string;
+  };
+}
+
 interface WishlistContextType {
   wishlistIds: Set<number>;
-  wishlistItems: any[];
+  wishlistItems: WishlistItem[];
   loading: boolean;
   toggleWishlist: (productId: number) => Promise<boolean>;
   isInWishlist: (productId: number) => boolean;
@@ -27,7 +38,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useUser();
   const { addToast } = useToast();
 
-  const [wishlistItems, setWishlistItems] = useState<any[]>([]);
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
   const [wishlistIds, setWishlistIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -39,10 +50,10 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       setLoading(true);
-      const items = (await api.get('/wishlist')) || [];
+      const items = (await api.get<WishlistItem[]>('/wishlist')) || [];
       setWishlistItems(items);
-      setWishlistIds(new Set(items.map((item: any) => item.productId || item.product?.id)));
-    } catch (err: any) {
+      setWishlistIds(new Set(items.map((item) => item.productId || item.product?.id || 0)));
+    } catch (err: unknown) {
       console.warn('Could not load wishlist:', err);
     } finally {
       setLoading(false);
@@ -50,10 +61,35 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   }, [isSignedIn]);
 
   useEffect(() => {
-    if (isLoaded) {
-      refreshWishlist();
+    let isCancelled = false;
+    if (!isLoaded) return;
+
+    if (!isSignedIn) {
+      Promise.resolve().then(() => {
+        if (!isCancelled) {
+          setWishlistItems([]);
+          setWishlistIds(new Set());
+        }
+      });
+      return;
     }
-  }, [isLoaded, isSignedIn, refreshWishlist]);
+
+    api.get<WishlistItem[]>('/wishlist')
+      .then((items) => {
+        if (!isCancelled) {
+          const validItems = items || [];
+          setWishlistItems(validItems);
+          setWishlistIds(new Set(validItems.map((item) => item.productId || item.product?.id || 0)));
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load wishlist:', err);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isLoaded, isSignedIn]);
 
   const isInWishlist = useCallback((productId: number) => {
     return wishlistIds.has(productId);
@@ -77,14 +113,15 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     setWishlistIds(newIds);
 
     try {
-      const res = await api.post('/wishlist', { productId });
+      const res = await api.post<{ message?: string }>('/wishlist', { productId });
       addToast(res.message || (currentlyInWishlist ? 'Removed from wishlist' : 'Added to wishlist'), 'success');
       await refreshWishlist();
       return !currentlyInWishlist;
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Rollback on error
       setWishlistIds(wishlistIds);
-      addToast(err.message || 'Failed to update wishlist', 'error');
+      const msg = err instanceof Error ? err.message : 'Failed to update wishlist';
+      addToast(msg, 'error');
       return currentlyInWishlist;
     }
   };

@@ -33,7 +33,7 @@ const getHeaders = (): HeadersInit => {
 };
 
 
-async function parseJsonSafe(res: Response): Promise<any> {
+async function parseJsonSafe(res: Response): Promise<unknown> {
   try {
     return await res.json();
   } catch {
@@ -41,7 +41,7 @@ async function parseJsonSafe(res: Response): Promise<any> {
   }
 }
 
-const customFetch = async (endpoint: string, options: RequestInit = {}): Promise<any> => {
+const customFetch = async <T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> => {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers = {
     ...getHeaders(),
@@ -57,41 +57,42 @@ const customFetch = async (endpoint: string, options: RequestInit = {}): Promise
   const res = await fetch(url, mergedOptions);
 
   if (!res.ok) {
-    const err = (await parseJsonSafe(res)) as { message?: string; detail?: any };
+    const err = (await parseJsonSafe(res)) as { message?: string; detail?: unknown };
+    const detailMsg = Array.isArray(err.detail) && err.detail[0] && typeof err.detail[0] === 'object' && 'msg' in err.detail[0]
+      ? String((err.detail[0] as { msg: unknown }).msg)
+      : undefined;
     const detailMessage = typeof err.detail === 'string'
       ? err.detail
-      : Array.isArray(err.detail) && err.detail[0]?.msg
-      ? err.detail[0].msg
-      : undefined;
+      : detailMsg;
     throw new ApiError(detailMessage || err.message || 'API request failed', res.status);
   }
 
-  if (res.status === 204) return null;
-  return res.json();
+  if (res.status === 204) return null as T;
+  return res.json() as Promise<T>;
 };
 
 export const api = {
-  get(endpoint: string) {
-    return customFetch(endpoint, { method: 'GET' });
+  get<T = unknown>(endpoint: string): Promise<T> {
+    return customFetch<T>(endpoint, { method: 'GET' });
   },
 
-  post(endpoint: string, data?: unknown, headers?: HeadersInit) {
-    return customFetch(endpoint, {
+  post<T = unknown>(endpoint: string, data?: unknown, headers?: HeadersInit): Promise<T> {
+    return customFetch<T>(endpoint, {
       method: 'POST',
       body: data !== undefined ? JSON.stringify(data) : undefined,
       headers,
     });
   },
 
-  put(endpoint: string, data?: unknown, headers?: HeadersInit) {
-    return customFetch(endpoint, {
+  put<T = unknown>(endpoint: string, data?: unknown, headers?: HeadersInit): Promise<T> {
+    return customFetch<T>(endpoint, {
       method: 'PUT',
       body: data !== undefined ? JSON.stringify(data) : undefined,
       headers,
     });
   },
 
-  delete(endpoint: string) {
-    return customFetch(endpoint, { method: 'DELETE' });
+  delete<T = unknown>(endpoint: string): Promise<T> {
+    return customFetch<T>(endpoint, { method: 'DELETE' });
   },
 };

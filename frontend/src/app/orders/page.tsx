@@ -21,7 +21,7 @@ export default function OrdersPage() {
 
   const loadOrders = async () => {
     try {
-      const data = await api.get('/orders');
+      const data = await api.get<any[]>('/orders');
       setOrders(data);
     } catch (err) {
       console.error('Failed to load orders', err);

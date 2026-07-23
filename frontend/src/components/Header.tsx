@@ -11,6 +11,15 @@ import { SignInButton, UserButton, useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/currency';
 
+interface SearchResultProduct {
+  id: number;
+  title: string;
+  name?: string;
+  price: number;
+  slug?: string;
+  images?: { url: string }[];
+}
+
 export default function Header() {
   const { user, isSignedIn } = useUser();
   const { cart } = useCart();
@@ -19,7 +28,7 @@ export default function Header() {
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResultProduct[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 
@@ -27,16 +36,19 @@ export default function Header() {
 
   // Debounced search API request
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      setShowSearchDropdown(false);
-      return;
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
+      const timer = setTimeout(() => {
+        setSearchResults([]);
+        setShowSearchDropdown(false);
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const res = await api.get(`/products?search=${encodeURIComponent(searchQuery.trim())}&limit=5`);
+        const res = await api.get<{ products?: SearchResultProduct[] }>(`/products?search=${encodeURIComponent(trimmed)}&limit=5`);
         setSearchResults(res.products || []);
         setShowSearchDropdown(true);
       } catch (err) {
@@ -141,14 +153,14 @@ export default function Header() {
                         <div className="relative h-10 w-10 overflow-hidden rounded-md bg-slate-950 flex-shrink-0">
                           <Image
                             src={prod.images?.[0]?.url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=200&auto=format&fit=crop'}
-                            alt={prod.name}
+                            alt={prod.name || prod.title || 'Product'}
                             fill
                             className="object-cover"
                           />
                         </div>
                         <div className="flex-1 min-w-0">
                           <h4 className="text-xs font-bold text-white group-hover:text-violet-400 transition-colors truncate">
-                            {prod.name}
+                            {prod.name || prod.title}
                           </h4>
                           <p className="text-[10px] text-slate-400 capitalize truncate">
                             {prod.category?.name || 'Catalog'}
