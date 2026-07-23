@@ -13,7 +13,14 @@ const isAdminRoute = createRouteMatcher([
 
 export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req) || isAdminRoute(req)) {
-    await (auth() as any).protect();
+    if (typeof (auth as any).protect === 'function') {
+      await (auth as any).protect();
+    } else {
+      const authObj = await auth();
+      if (authObj && typeof (authObj as any).protect === 'function') {
+        await (authObj as any).protect();
+      }
+    }
   }
 });
 
