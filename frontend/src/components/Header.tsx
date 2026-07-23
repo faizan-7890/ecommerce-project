@@ -16,8 +16,10 @@ interface SearchResultProduct {
   title: string;
   name?: string;
   price: number;
+  basePrice?: any;
   slug?: string;
   images?: { url: string }[];
+  category?: { name?: string };
 }
 
 export default function Header() {

@@ -90,7 +90,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
     setLoading(true);
     try {
-      const data = await api.post('/cart/items', { productId, variantId, quantity });
+      const data = await api.post<Cart>('/cart/items', { productId, variantId, quantity });
       setCart(data); // backend now returns full CartOut
     } catch (err) {
       throw err;
@@ -102,7 +102,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const updateQuantity = async (itemId: number, quantity: number) => {
     setLoading(true);
     try {
-      const data = await api.put(`/cart/items/${itemId}`, { quantity });
+      const data = await api.put<Cart>(`/cart/items/${itemId}`, { quantity });
       setCart(data); // backend now returns full CartOut
     } catch (err) {
       throw err;
@@ -114,7 +114,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const removeFromCart = async (itemId: number) => {
     setLoading(true);
     try {
-      const data = await api.delete(`/cart/items/${itemId}`);
+      const data = await api.delete<Cart>(`/cart/items/${itemId}`);
       setCart(data); // backend now returns full CartOut
     } catch (err) {
       throw err;
