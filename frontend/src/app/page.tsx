@@ -34,15 +34,15 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-bg-base">
       <Header />
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative overflow-hidden py-24 px-4 sm:px-6 lg:px-8 bg-slate-950">
-          {/* Decorative Gradients */}
-          <div className="absolute top-1/4 left-1/2 -z-10 h-[400px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-violet-600/10 to-fuchsia-600/10 blur-3xl" />
-          <div className="absolute top-12 left-12 -z-10 h-32 w-32 rounded-full bg-violet-500/5 blur-2xl" />
+        <section className="relative overflow-hidden py-24 px-4 sm:px-6 lg:px-8">
+          {/* Decorative Backdrops */}
+          <div className="absolute top-1/4 left-1/2 -z-10 h-[400px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-3xl" />
+          <div className="absolute top-12 left-12 -z-10 h-32 w-32 rounded-full bg-secondary/10 blur-2xl" />
           
           <motion.div 
             initial={{ opacity: 0, y: 30 }}
@@ -50,9 +50,9 @@ export default function Home() {
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="mx-auto max-w-4xl text-center"
           >
-            <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl text-white">
+            <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl text-text-main">
               The Future of{' '}
-              <span className="bg-gradient-to-r from-violet-400 via-fuchsia-500 to-pink-500 bg-clip-text text-transparent">
+              <span className="text-primary">
                 Premium Shopping
               </span>
             </h1>
@@ -60,7 +60,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
-              className="mt-6 text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed"
+              className="mt-6 text-lg text-text-muted max-w-2xl mx-auto leading-relaxed"
             >
               Explore our handpicked curation of elite fashion, timeless accessories, and groundbreaking gadgets. Designed for the bold.
             </motion.p>
@@ -72,26 +72,26 @@ export default function Home() {
             >
               <Link
                 href="/products"
-                className="rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-6 py-3.5 text-base font-semibold text-white shadow-xl shadow-violet-500/20 hover:opacity-90 transition-all duration-200 hover:-translate-y-0.5"
+                className="rounded-xl bg-primary px-6 py-3.5 text-base font-semibold text-bg-base shadow-xl shadow-primary/20 hover:bg-yellow-400 hover:shadow-primary/30 transition-all duration-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
               >
                 Shop Collection
               </Link>
               <a
                 href="#featured"
-                className="text-base font-semibold leading-6 text-slate-300 hover:text-white transition-colors duration-200"
+                className="text-base font-semibold leading-6 text-text-muted hover:text-text-main transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-main rounded-md px-3 py-1"
               >
-                Learn more <span aria-hidden="true">→</span>
+                Learn more <span aria-hidden="true" className="inline-block transition-transform group-hover:translate-x-1">→</span>
               </a>
             </motion.div>
           </motion.div>
         </section>
 
         {/* Categories Section */}
-        <section className="py-16 bg-slate-950/60 border-y border-slate-900">
+        <section className="py-16 bg-surface/50 border-y border-border">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center md:text-left mb-10">
-              <h2 className="text-2xl font-extrabold text-white">Browse by Category</h2>
-              <p className="mt-1 text-sm text-slate-400">Discover collections tailored to your lifestyle.</p>
+              <h2 className="text-2xl font-extrabold text-text-main">Browse by Category</h2>
+              <p className="mt-1 text-sm text-text-muted">Discover collections tailored to your lifestyle.</p>
             </div>
 
             {loading ? (
@@ -107,18 +107,18 @@ export default function Home() {
                     <Link
                       key={category.id}
                       href={`/products?categoryId=${category.id}`}
-                      className="group flex flex-col items-center justify-center p-6 rounded-2xl border border-slate-900 bg-slate-900/40 hover:bg-slate-900/80 hover:border-slate-800 transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5"
+                      className="group flex flex-col items-center justify-center p-6 rounded-2xl border border-border bg-surface hover:bg-surface/80 hover:border-secondary transition-all duration-300 hover:shadow-lg hover:-translate-y-1 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     >
-                      <h3 className="text-base font-bold text-white group-hover:text-violet-400 transition-colors">
+                      <h3 className="text-base font-bold text-text-main group-hover:text-primary transition-colors">
                         {category.name}
                       </h3>
-                      <span className="mt-1.5 text-xs text-slate-500">
+                      <span className="mt-1.5 text-xs text-text-muted">
                         {category._count?.products || 0} Products
                       </span>
                     </Link>
                   ))
                 ) : (
-                  <div className="col-span-4 p-8 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/20 text-slate-400">
+                  <div className="col-span-4 p-8 text-center rounded-2xl border border-dashed border-border bg-surface/50 text-text-muted">
                     No categories configured yet. Sign in as Admin to create one!
                   </div>
                 )}
@@ -132,14 +132,14 @@ export default function Home() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-12">
               <div className="text-center md:text-left">
-                <h2 className="text-3xl font-extrabold text-white">Featured Products</h2>
-                <p className="mt-2 text-sm text-slate-400">Handpicked items from our premium catalog.</p>
+                <h2 className="text-3xl font-extrabold text-text-main">Featured Products</h2>
+                <p className="mt-2 text-sm text-text-muted">Handpicked items from our premium catalog.</p>
               </div>
               <Link
                 href="/products"
-                className="hidden md:flex items-center text-sm font-semibold text-violet-400 hover:text-violet-300 transition-colors"
+                className="hidden md:flex items-center text-sm font-semibold text-primary hover:text-yellow-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md px-2 py-1"
               >
-                View all items <span className="ml-1">→</span>
+                View all items <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
               </Link>
             </div>
 
@@ -158,12 +158,12 @@ export default function Home() {
                     ))}
                   </div>
                 ) : (
-                  <div className="p-16 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/20">
-                    <p className="text-slate-400 mb-6">No products found in the catalog.</p>
+                  <div className="p-16 text-center rounded-2xl border border-dashed border-border bg-surface/50">
+                    <p className="text-text-muted mb-6">No products found in the catalog.</p>
                     {categories.length > 0 && (
                       <Link
                         href="/login"
-                        className="rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white shadow-md"
+                        className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-bg-base shadow-md transition-all active:scale-[0.97]"
                       >
                         Sign in as Admin to Add Products
                       </Link>

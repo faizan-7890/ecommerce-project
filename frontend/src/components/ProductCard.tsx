@@ -18,6 +18,7 @@ export default function ProductCard({ product }: { product: Product }) {
   const [adding, setAdding] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   const isLiked = isInWishlist(product.id);
 
@@ -72,25 +73,26 @@ export default function ProductCard({ product }: { product: Product }) {
     : 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=600&auto=format&fit=crop';
 
   return (
-    <Link href={`/products/${product.id}`} className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-900 bg-slate-900/40 p-4 transition-all duration-300 hover:border-slate-800 hover:bg-slate-900/60 hover:shadow-2xl hover:shadow-violet-500/5">
+    <Link href={`/products/${product.id}`} className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-surface/50 p-4 transition-all duration-300 hover:border-secondary hover:bg-surface hover:shadow-xl hover:-translate-y-1 hover:shadow-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base">
       {/* Product Image */}
-      <div className="relative aspect-square overflow-hidden rounded-xl bg-slate-950">
+      <div className="relative aspect-square overflow-hidden rounded-xl bg-bg-base">
         <Image
           src={imageUrl}
           alt={product.name}
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-          className="object-cover object-center transition-transform duration-500 group-hover:scale-105"
+          onLoad={() => setImgLoaded(true)}
+          className={`object-cover object-center transition-all duration-500 group-hover:scale-105 ${imgLoaded ? 'opacity-100 blur-0' : 'opacity-0 blur-sm'}`}
         />
 
         {/* Wishlist Heart Button */}
         <button
           onClick={handleWishlistToggle}
           title={isLiked ? 'Remove from Wishlist' : 'Add to Wishlist'}
-          className={`absolute top-2 right-2 flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-md transition-all duration-300 ${
+          className={`absolute top-2 right-2 flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-md transition-all duration-300 active:scale-[0.85] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary ${
             isLiked
               ? 'bg-rose-500/90 text-white shadow-lg shadow-rose-500/30 scale-110'
-              : 'bg-slate-900/60 text-slate-300 hover:bg-rose-500 hover:text-white hover:scale-110'
+              : 'bg-surface/80 text-text-muted hover:bg-rose-500 hover:text-white hover:scale-110'
           }`}
         >
           <svg
@@ -109,13 +111,13 @@ export default function ProductCard({ product }: { product: Product }) {
         </button>
 
         {hasDiscount && (
-          <span className="absolute top-2 left-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-2 py-0.5 text-xs font-bold text-white shadow-md">
+          <span className="absolute top-2 left-2 rounded-md bg-secondary px-2 py-0.5 text-xs font-bold text-bg-base shadow-md">
             Save {formatCurrency(discountAmount)}
           </span>
         )}
         {totalStock <= 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80">
-            <span className="rounded-md border border-slate-800 bg-slate-900 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-400">
+          <div className="absolute inset-0 flex items-center justify-center bg-bg-base/80 backdrop-blur-sm">
+            <span className="rounded-md border border-border bg-surface px-3 py-1 text-xs font-bold uppercase tracking-wider text-text-muted">
               Out Of Stock
             </span>
           </div>
@@ -124,13 +126,13 @@ export default function ProductCard({ product }: { product: Product }) {
 
       {/* Product Info */}
       <div className="mt-4 flex flex-1 flex-col">
-        <span className="text-xs font-semibold uppercase tracking-wider text-violet-400">
+        <span className="text-xs font-semibold uppercase tracking-wider text-secondary">
           {product.category?.name || 'Catalog'}
         </span>
-        <h3 className="mt-1 text-base font-bold text-white group-hover:text-violet-400 transition-colors duration-200 line-clamp-1">
+        <h3 className="mt-1 text-base font-bold text-text-main group-hover:text-primary transition-colors duration-200 line-clamp-1">
           {product.name}
         </h3>
-        <p className="mt-1 text-sm text-slate-400 line-clamp-2 flex-1">
+        <p className="mt-1 text-sm text-text-muted line-clamp-2 flex-1">
           {product.description}
         </p>
 
@@ -139,15 +141,15 @@ export default function ProductCard({ product }: { product: Product }) {
           <div className="flex flex-col">
             {hasDiscount ? (
               <>
-                <span className="text-xs text-slate-500 line-through">
+                <span className="text-xs text-text-muted line-through">
                   {formatCurrency(originalPrice)}
                 </span>
-                <span className="text-lg font-extrabold text-white">
+                <span className="text-lg font-extrabold text-text-main">
                   {formatCurrency(finalPrice)}
                 </span>
               </>
             ) : (
-              <span className="text-lg font-extrabold text-white">
+              <span className="text-lg font-extrabold text-text-main">
                 {formatCurrency(originalPrice)}
               </span>
             )}
@@ -156,14 +158,14 @@ export default function ProductCard({ product }: { product: Product }) {
           <button
             onClick={handleAddToCart}
             disabled={totalStock <= 0 || adding}
-            className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-300 shadow-md ${
+            className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-300 shadow-md active:scale-[0.9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-bg-base ${
               success
                 ? 'bg-emerald-500 text-white'
                 : errorMsg
-                ? 'bg-red-500 text-white'
+                ? 'bg-rose-500 text-white'
                 : totalStock <= 0
-                ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                : 'bg-slate-850 hover:bg-gradient-to-r hover:from-violet-500 hover:to-fuchsia-500 text-slate-200 hover:text-white hover:shadow-violet-500/20'
+                ? 'bg-bg-base text-text-muted cursor-not-allowed opacity-50'
+                : 'bg-surface border border-border text-text-main hover:bg-primary hover:text-bg-base hover:border-primary hover:shadow-primary/20 group-hover:bg-primary/10'
             }`}
           >
             {adding ? (
@@ -194,7 +196,7 @@ export default function ProductCard({ product }: { product: Product }) {
         </div>
 
         {errorMsg && (
-          <p className="mt-1 text-[10px] font-medium text-red-400 text-center animate-pulse">
+          <p className="mt-1 text-[10px] font-medium text-rose-400 text-center animate-pulse">
             {errorMsg}
           </p>
         )}
