@@ -307,6 +307,13 @@ export default function ProductDetailPage() {
                 )}
               </div>
 
+              {stockAvailable > 0 && stockAvailable <= 5 && (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-1 text-xs font-bold text-amber-400 animate-pulse">
+                  <span className="h-2 w-2 rounded-full bg-amber-400" />
+                  Low Stock — Only {stockAvailable} left in stock!
+                </div>
+              )}
+
               {/* Variants Selection buttons */}
               {product.variants && product.variants.length > 0 && (
                 <div className="mt-8 space-y-6 border-t border-slate-900 pt-8">

@@ -115,6 +115,11 @@ export default function ProductCard({ product }: { product: Product }) {
             Save {formatCurrency(discountAmount)}
           </span>
         )}
+        {totalStock > 0 && totalStock <= 5 && (
+          <span className="absolute bottom-2 left-2 rounded-md bg-amber-500/90 px-2 py-0.5 text-[10px] font-extrabold text-black backdrop-blur-sm shadow-md animate-pulse">
+            Only {totalStock} Left!
+          </span>
+        )}
         {totalStock <= 0 && (
           <div className="absolute inset-0 flex items-center justify-center bg-bg-base/80 backdrop-blur-sm">
             <span className="rounded-md border border-border bg-surface px-3 py-1 text-xs font-bold uppercase tracking-wider text-text-muted">

@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
 import { Product, Category, Order, Coupon, ProductVariant } from '@/types';
 import AdminChart from '@/components/AdminChart';
+import { exportToCsv } from '@/lib/exportCsv';
 
 export default function AdminDashboard() {
   const { user, isLoaded, isSignedIn } = useUser();
@@ -344,6 +345,52 @@ export default function AdminDashboard() {
     }
   };
 
+  const exportProductsCsv = () => {
+    const headers = ['ID', 'Name', 'Brand', 'Category', 'Base Price', 'Stock Level'];
+    const rows = products.map((p) => [
+      p.id,
+      p.name || (p as any).title || '',
+      p.brand || '',
+      p.category?.name || '',
+      p.basePrice || (p as any).price || 0,
+      p.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) ?? 0,
+    ]);
+    exportToCsv(`veloce_products_${Date.now()}`, headers, rows);
+    addToast('Products inventory exported to CSV', 'success');
+  };
+
+  const exportOrdersCsv = () => {
+    const headers = ['Order ID', 'Order Number', 'User ID', 'Total Amount', 'Order Status', 'Payment Status', 'Shipment Status', 'Created At'];
+    const rows = orders.map((o) => [
+      o.id,
+      o.orderNumber || o.id,
+      o.userId,
+      o.total || 0,
+      o.orderStatus,
+      o.paymentStatus,
+      o.shipmentStatus,
+      o.createdAt,
+    ]);
+    exportToCsv(`veloce_orders_${Date.now()}`, headers, rows);
+    addToast('Orders report exported to CSV', 'success');
+  };
+
+  const exportCouponsCsv = () => {
+    const headers = ['ID', 'Code', 'Discount Type', 'Discount Value', 'Min Order', 'Usage Limit', 'Times Used', 'Status'];
+    const rows = coupons.map((c) => [
+      c.id,
+      c.code,
+      c.discountType,
+      c.discountValue,
+      c.minOrderAmount,
+      c.usageLimit ?? 'Unlimited',
+      (c as any).timesUsed || (c as any)._count?.usages || 0,
+      c.isActive ? 'ACTIVE' : 'DISABLED',
+    ]);
+    exportToCsv(`veloce_coupons_${Date.now()}`, headers, rows);
+    addToast('Coupons data exported to CSV', 'success');
+  };
+
   const handleDeleteCoupon = async (couponId: number) => {
     if (!confirm('Are you sure you want to delete this coupon?')) return;
     try {
@@ -571,7 +618,15 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Product list */}
               <div className="lg:col-span-2 rounded-2xl border border-slate-900 bg-slate-900/40 p-6">
-                <h3 className="text-lg font-bold text-white mb-6">Manage Products</h3>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-bold text-white">Manage Products</h3>
+                  <button
+                    onClick={exportProductsCsv}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 rounded-lg border border-slate-700 transition-colors"
+                  >
+                    📥 Export CSV
+                  </button>
+                </div>
 
                 {loadingProducts ? (
                   <p className="text-slate-450 animate-pulse text-sm">Syncing catalog items...</p>
@@ -842,7 +897,15 @@ export default function AdminDashboard() {
           {/* TAB CONTENT: ORDERS */}
           {activeTab === 'orders' && (
             <div className="rounded-2xl border border-slate-900 bg-slate-900/40 p-6">
-              <h3 className="text-lg font-bold text-white mb-6">System Orders</h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-white">System Orders</h3>
+                <button
+                  onClick={exportOrdersCsv}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 rounded-lg border border-slate-700 transition-colors"
+                >
+                  📥 Export CSV
+                </button>
+              </div>
 
               {loadingOrders ? (
                 <p className="text-slate-450 animate-pulse text-sm">Syncing orders feed...</p>
@@ -944,7 +1007,15 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Coupons list */}
               <div className="lg:col-span-2 rounded-2xl border border-slate-900 bg-slate-900/40 p-6">
-                <h3 className="text-lg font-bold text-white mb-6">Manage Promo Coupons</h3>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-bold text-white">Manage Promo Coupons</h3>
+                  <button
+                    onClick={exportCouponsCsv}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 rounded-lg border border-slate-700 transition-colors"
+                  >
+                    📥 Export CSV
+                  </button>
+                </div>
 
                 {loadingCoupons ? (
                   <p className="text-slate-450 animate-pulse text-sm">Loading coupons...</p>
