@@ -1,15 +1,31 @@
 @import "tailwindcss";
 
 @theme {
-  /* We use the custom properties directly as Tailwind v4 theme variables */
+  /* Base surfaces */
   --color-bg-base: #0F1115;
   --color-surface: #1A1D24;
-  --color-primary: #E2C044;
-  --color-secondary: #587B7F;
+  --color-border: #2A2F3A;
   --color-text-main: #F3F4F6;
   --color-text-muted: #9CA3AF;
-  --color-border: #2A2F3A;
-  
+
+  /* Hybrid brand: gold primary CTAs */
+  --color-primary: #E2C044;
+  --color-secondary: #587B7F;
+
+  /* Accent spectrum (logo energy, mesh, glows) */
+  --color-accent-from: #8b5cf6;
+  --color-accent-via: #d946ef;
+  --color-accent-to: #ec4899;
+
+  /* Semantic */
+  --color-success: #10b981;
+  --color-danger: #f43f5e;
+  --color-warning: #f59e0b;
+
+  /* Glows */
+  --color-glow-primary: rgb(226 192 68 / 0.25);
+  --color-glow-accent: rgb(139 92 246 / 0.25);
+
   --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -22,4 +38,80 @@ body {
   background: var(--color-bg-base);
   color: var(--color-text-main);
   font-family: var(--font-sans);
+}
+
+/* Brand accent gradient text (logo) */
+.velo-accent-text {
+  background-image: linear-gradient(
+    to right,
+    var(--color-accent-from),
+    var(--color-accent-via),
+    var(--color-accent-to)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Skeleton shimmer */
+@keyframes velo-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.velo-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgb(26 29 36 / 0.5) 0%,
+    rgb(42 47 58 / 0.9) 50%,
+    rgb(26 29 36 / 0.5) 100%
+  );
+  background-size: 200% 100%;
+  animation: velo-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Nav underline draw */
+.velo-nav-link {
+  position: relative;
+}
+.velo-nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 2px;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: linear-gradient(
+    to right,
+    var(--color-accent-from),
+    var(--color-primary)
+  );
+  transition: transform 180ms ease-out;
+}
+.velo-nav-link:hover::after,
+.velo-nav-link[data-active="true"]::after {
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .velo-shimmer {
+    animation: none;
+    background: rgb(26 29 36 / 0.7);
+  }
+
+  .velo-nav-link::after {
+    transition: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
 }

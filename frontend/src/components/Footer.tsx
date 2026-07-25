@@ -3,14 +3,33 @@ import Link from 'next/link';
 
 export default function Footer() {
   return (
-    <footer className="mt-auto border-t border-slate-900 bg-slate-980 py-8 text-center text-sm text-slate-500">
+    <footer className="relative mt-auto border-t border-border bg-bg-base py-8 text-center text-sm text-text-muted">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+        aria-hidden
+      />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
           <p>© {new Date().getFullYear()} VELOCE. All rights reserved.</p>
           <div className="flex gap-6">
-            <Link href="/products" className="hover:text-slate-300 transition-colors">Shop</Link>
-            <Link href="/privacy-policy" className="hover:text-slate-300 transition-colors">Privacy Policy</Link>
-            <Link href="/terms" className="hover:text-slate-300 transition-colors">Terms of Service</Link>
+            <Link
+              href="/products"
+              className="transition-colors hover:text-primary"
+            >
+              Shop
+            </Link>
+            <Link
+              href="/privacy-policy"
+              className="transition-colors hover:text-primary"
+            >
+              Privacy Policy
+            </Link>
+            <Link
+              href="/terms"
+              className="transition-colors hover:text-primary"
+            >
+              Terms of Service
+            </Link>
           </div>
         </div>
       </div>

@@ -227,7 +227,7 @@ export default function CheckoutPage() {
                 razorpay_signature: response.razorpay_signature,
               });
               await refreshCart();
-              router.push('/orders');
+              router.push('/orders?celebrated=1');
             } catch (err: any) {
               setError(err.message || 'Payment signature verification failed.');
             } finally {
@@ -255,7 +255,7 @@ export default function CheckoutPage() {
       }
 
       await refreshCart();
-      router.push('/orders');
+      router.push('/orders?celebrated=1');
     } catch (err: any) {
       setError(err.message || 'Checkout failed. Please inspect your item stock settings.');
     } finally {

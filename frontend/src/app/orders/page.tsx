@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useUser } from '@clerk/nextjs';
@@ -10,14 +10,18 @@ import { api } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
 import Image from 'next/image';
 import { formatCurrency } from '@/lib/currency';
+import { ConfettiBurst, FadeIn, EmptyState, Stagger, StaggerItem } from '@/components/motion';
+import { flags } from '@/lib/featureFlags';
 
-export default function OrdersPage() {
+function OrdersContent() {
   const { isLoaded, isSignedIn } = useUser();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { addToast } = useToast();
 
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [celebrate, setCelebrate] = useState(false);
 
   const loadOrders = async () => {
     try {
@@ -38,12 +42,24 @@ export default function OrdersPage() {
     }
   }, [isSignedIn, isLoaded, router]);
 
+  // Order-success confetti: checkout navigates to /orders?celebrated=1
+  useEffect(() => {
+    if (searchParams.get('celebrated') !== '1') return;
+    if (!flags.confettiSuccess) {
+      router.replace('/orders');
+      return;
+    }
+    const t = window.setTimeout(() => setCelebrate(true), 0);
+    router.replace('/orders');
+    return () => window.clearTimeout(t);
+  }, [searchParams, router]);
+
   if (!isLoaded || !isSignedIn) {
     return (
-      <div className="flex flex-col min-h-screen">
+      <div className="flex min-h-screen flex-col bg-bg-base">
         <Header />
-        <main className="flex-1 flex items-center justify-center bg-slate-950">
-          <p className="text-slate-400">Loading order tracker...</p>
+        <main className="flex flex-1 items-center justify-center bg-bg-base">
+          <p className="text-text-muted">Loading order tracker...</p>
         </main>
         <Footer />
       </div>
@@ -65,36 +81,38 @@ export default function OrdersPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'delivered':
-        return 'bg-emerald-500/10 text-emerald-450 border-emerald-500/20';
+        return 'border-success/20 bg-success/10 text-success';
       case 'cancelled':
-        return 'bg-red-500/10 text-red-400 border-red-500/20';
+        return 'border-danger/20 bg-danger/10 text-danger';
       case 'pending':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        return 'border-warning/20 bg-warning/10 text-warning';
       default:
-        return 'bg-violet-500/10 text-violet-400 border-violet-500/20';
+        return 'border-primary/20 bg-primary/10 text-primary';
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950">
+    <div className="flex min-h-screen flex-col bg-bg-base">
       <Header />
+      <ConfettiBurst
+        active={celebrate}
+        onComplete={() => setCelebrate(false)}
+      />
 
-      <main className="flex-1 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl flex flex-col md:flex-row gap-8">
-          
-          {/* Quick Nav Sidebar */}
-          <aside className="w-full md:w-56 flex-shrink-0">
-            <div className="rounded-2xl border border-slate-900 bg-slate-900/40 p-4 backdrop-blur-sm">
+      <main className="flex-1 px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-4xl flex-col gap-8 md:flex-row">
+          <aside className="w-full flex-shrink-0 md:w-56">
+            <div className="rounded-2xl border border-border bg-surface/50 p-4 backdrop-blur-sm">
               <nav className="flex flex-col gap-2 text-sm font-semibold">
                 <Link
                   href="/profile"
-                  className="rounded-xl px-4 py-2.5 text-slate-400 hover:bg-slate-900 hover:text-white transition-all"
+                  className="rounded-xl px-4 py-2.5 text-text-muted transition-all hover:bg-surface hover:text-text-main"
                 >
                   Account Profile
                 </Link>
                 <Link
                   href="/orders"
-                  className="rounded-xl bg-violet-500/10 px-4 py-2.5 text-violet-400 border border-violet-500/20"
+                  className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-2.5 text-primary"
                 >
                   My Orders
                 </Link>
@@ -102,120 +120,158 @@ export default function OrdersPage() {
             </div>
           </aside>
 
-          {/* Orders Feed */}
           <section className="flex-1 space-y-6">
-            <div className="border-b border-slate-900 pb-4">
-              <h2 className="text-2xl font-extrabold text-white">Order History</h2>
-              <p className="text-sm text-slate-400 mt-1">Track and manage your recent store purchases.</p>
-            </div>
+            <FadeIn className="border-b border-border pb-4">
+              <h2 className="text-2xl font-extrabold text-text-main">Order History</h2>
+              <p className="mt-1 text-sm text-text-muted">
+                Track and manage your recent store purchases.
+              </p>
+            </FadeIn>
 
             {loading ? (
               <div className="space-y-4">
                 {[...Array(2)].map((_, i) => (
-                  <div key={i} className="h-48 rounded-2xl bg-slate-900/40 animate-pulse border border-slate-900" />
+                  <div
+                    key={i}
+                    className="velo-shimmer h-48 rounded-2xl border border-border"
+                  />
                 ))}
               </div>
             ) : orders.length > 0 ? (
-              <div className="space-y-6">
+              <Stagger className="space-y-6">
                 {orders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="rounded-2xl border border-slate-900 bg-slate-900/20 p-6 space-y-4 shadow-sm"
-                  >
-                    {/* Order Metadata */}
-                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-900 pb-4 text-sm">
-                      <div className="space-y-1">
-                        <span className="text-xs text-slate-500">Order Number</span>
-                        <span className="block font-bold text-white font-mono">{order.orderNumber}</span>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-xs text-slate-500">Date Placed</span>
-                        <span className="block font-medium text-slate-350">
-                          {new Date(order.createdAt).toLocaleDateString(undefined, {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          })}
-                        </span>
-                      </div>
-                      <div className="space-y-1 text-right">
-                        <span className="text-xs text-slate-500">Total Charged</span>
-                        <span className="block font-extrabold text-white">{formatCurrency(parseFloat(order.total))}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${getStatusBadge(order.orderStatus)}`}>
-                          {order.orderStatus}
-                        </span>
-                        <Link
-                          href={`/orders/${order.id}`}
-                          className="rounded-lg bg-violet-600/10 border border-violet-500/20 px-3 py-1 text-xs font-bold text-violet-400 hover:bg-violet-600 hover:text-white transition-all"
-                        >
-                          Track Order &rarr;
-                        </Link>
-                      </div>
-                    </div>
-
-                    {/* Order Items */}
-                    <div className="space-y-4">
-                      {order.items.map((item: any) => (
-                        <div key={item.id} className="flex items-center gap-4">
-                          <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-slate-950 flex-shrink-0">
-                            <Image
-                              src={
-                                item.product?.images?.[0]?.url ||
-                                'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=200&auto=format&fit=crop'
-                              }
-                              alt={item.productNameSnapshot}
-                              fill
-                              className="object-cover"
-                            />
-                          </div>
-                          <div className="flex-1 text-sm">
-                            <span className="font-bold text-white block">{item.productNameSnapshot}</span>
-                            <span className="text-slate-500">Qty: {item.quantity}</span>
-                          </div>
-                          <span className="text-sm font-semibold text-slate-300">
-                            ${parseFloat(item.productPriceSnapshot).toFixed(2)}
+                  <StaggerItem key={order.id}>
+                    <div className="space-y-4 rounded-2xl border border-border bg-surface/30 p-6 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4 text-sm">
+                        <div className="space-y-1">
+                          <span className="text-xs text-text-muted">Order Number</span>
+                          <span className="block font-mono font-bold text-text-main">
+                            {order.orderNumber}
                           </span>
                         </div>
-                      ))}
-                    </div>
-
-                    {/* Action Bar (e.g. Cancel order) */}
-                    <div className="flex items-center justify-between border-t border-slate-900 pt-4 text-xs">
-                      <div className="text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
-                        <span>Payment: <span className="text-slate-300 font-bold uppercase">{order.paymentStatus}</span></span>
-                        <span>Shipment: <span className="text-slate-300 font-bold uppercase">{order.shipmentStatus}</span></span>
+                        <div className="space-y-1">
+                          <span className="text-xs text-text-muted">Date Placed</span>
+                          <span className="block font-medium text-text-muted">
+                            {new Date(order.createdAt).toLocaleDateString(undefined, {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                            })}
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-right">
+                          <span className="text-xs text-text-muted">Total Charged</span>
+                          <span className="block font-extrabold text-text-main">
+                            {formatCurrency(parseFloat(order.total))}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`rounded-md border px-2.5 py-1 text-xs font-bold uppercase ${getStatusBadge(order.orderStatus)}`}
+                          >
+                            {order.orderStatus}
+                          </span>
+                          <Link
+                            href={`/orders/${order.id}`}
+                            className="rounded-lg border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary transition-all hover:bg-primary hover:text-bg-base"
+                          >
+                            Track Order &rarr;
+                          </Link>
+                        </div>
                       </div>
-                      {order.orderStatus === 'pending' && (
-                        <button
-                          onClick={() => handleCancelOrder(order.id)}
-                          className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 font-bold text-red-400 hover:bg-red-500/20 transition-all"
-                        >
-                          Cancel Order
-                        </button>
-                      )}
+
+                      <div className="space-y-4">
+                        {order.items.map((item: any) => (
+                          <div key={item.id} className="flex items-center gap-4">
+                            <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-bg-base">
+                              <Image
+                                src={
+                                  item.product?.images?.[0]?.url ||
+                                  'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=200&auto=format&fit=crop'
+                                }
+                                alt={item.productNameSnapshot}
+                                fill
+                                className="object-cover"
+                              />
+                            </div>
+                            <div className="flex-1 text-sm">
+                              <span className="block font-bold text-text-main">
+                                {item.productNameSnapshot}
+                              </span>
+                              <span className="text-text-muted">Qty: {item.quantity}</span>
+                            </div>
+                            <span className="text-sm font-semibold text-text-muted">
+                              {formatCurrency(parseFloat(item.productPriceSnapshot))}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-border pt-4 text-xs">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-text-muted">
+                          <span>
+                            Payment:{' '}
+                            <span className="font-bold uppercase text-text-main">
+                              {order.paymentStatus}
+                            </span>
+                          </span>
+                          <span>
+                            Shipment:{' '}
+                            <span className="font-bold uppercase text-text-main">
+                              {order.shipmentStatus}
+                            </span>
+                          </span>
+                        </div>
+                        {order.orderStatus === 'pending' && (
+                          <button
+                            onClick={() => handleCancelOrder(order.id)}
+                            className="rounded-lg border border-danger/20 bg-danger/10 px-3 py-1.5 font-bold text-danger transition-all hover:bg-danger/20"
+                          >
+                            Cancel Order
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </StaggerItem>
                 ))}
-              </div>
+              </Stagger>
             ) : (
-              <div className="p-16 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/20 text-slate-400">
-                <p className="mb-6">You haven&apos;t placed any orders yet.</p>
-                <Link
-                  href="/products"
-                  className="rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 px-6 py-2.5 text-sm font-semibold text-white"
-                >
-                  Browse Products
-                </Link>
-              </div>
+              <EmptyState
+                title="No orders yet"
+                description="You haven't placed any orders yet."
+                action={
+                  <Link
+                    href="/products"
+                    className="rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-bg-base shadow-md"
+                  >
+                    Browse Products
+                  </Link>
+                }
+              />
             )}
           </section>
-
         </div>
       </main>
 
       <Footer />
     </div>
+  );
+}
+
+export default function OrdersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen flex-col bg-bg-base">
+          <Header />
+          <main className="flex flex-1 items-center justify-center">
+            <p className="text-text-muted">Loading order tracker...</p>
+          </main>
+          <Footer />
+        </div>
+      }
+    >
+      <OrdersContent />
+    </Suspense>
   );
 }

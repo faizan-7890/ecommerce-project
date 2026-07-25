@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import ProductSkeleton from '@/components/skeletons/ProductSkeleton';
+import { EmptyState, Stagger, StaggerItem } from '@/components/motion';
 import { api } from '@/lib/api';
 import { Product, Category } from '@/types';
 
@@ -216,29 +217,33 @@ function ProductsContent() {
             <div>
               {products.length > 0 ? (
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <Stagger
+                    key={`${page}-${selectedCategory}-${sortBy}-${sortOrder}-${search}`}
+                    className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
+                  >
                     {products.map((product) => (
-                      <ProductCard key={product.id} product={product} />
+                      <StaggerItem key={product.id}>
+                        <ProductCard product={product} />
+                      </StaggerItem>
                     ))}
-                  </div>
+                  </Stagger>
 
-                  {/* Pagination Controls */}
                   {totalPages > 1 && (
                     <div className="mt-12 flex items-center justify-center gap-4">
                       <button
                         onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
                         disabled={page === 1}
-                        className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-semibold text-text-muted transition-colors hover:text-text-main disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Previous
                       </button>
-                      <span className="text-sm font-medium text-slate-400">
+                      <span className="text-sm font-medium text-text-muted">
                         Page {page} of {totalPages}
                       </span>
                       <button
                         onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
                         disabled={page === totalPages}
-                        className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-semibold text-text-muted transition-colors hover:text-text-main disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Next
                       </button>
@@ -246,9 +251,18 @@ function ProductsContent() {
                   )}
                 </>
               ) : (
-                <div className="p-20 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/20 text-slate-400">
-                  No products matching your search criteria. Try adjusting your filters.
-                </div>
+                <EmptyState
+                  title="No products found"
+                  description="No products matching your search criteria. Try adjusting your filters."
+                  action={
+                    <button
+                      onClick={handleClearFilters}
+                      className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-bg-base"
+                    >
+                      Clear filters
+                    </button>
+                  }
+                />
               )}
             </div>
           )}
@@ -260,14 +274,16 @@ function ProductsContent() {
 
 export default function ProductsPage() {
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex min-h-screen flex-col bg-bg-base">
       <Header />
-      <main className="flex-1 bg-slate-950">
-        <Suspense fallback={
-          <div className="text-center py-20 text-slate-400 animate-pulse">
-            Loading marketplace catalog...
-          </div>
-        }>
+      <main className="flex-1 bg-bg-base">
+        <Suspense
+          fallback={
+            <div className="py-20 text-center text-text-muted">
+              Loading marketplace catalog...
+            </div>
+          }
+        >
           <ProductsContent />
         </Suspense>
       </main>

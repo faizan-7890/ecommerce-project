@@ -7,7 +7,15 @@ import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 import ProductSkeleton from '@/components/skeletons/ProductSkeleton';
 import CategorySkeleton from '@/components/skeletons/CategorySkeleton';
-import { motion } from 'framer-motion';
+import {
+  FadeIn,
+  GradientMesh,
+  MagneticLink,
+  Stagger,
+  StaggerItem,
+  EmptyState,
+} from '@/components/motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { api } from '@/lib/api';
 import { Category, Product } from '@/types';
 
@@ -15,14 +23,15 @@ export default function Home() {
   const [categories, setCategories] = useState<(Category & { _count?: { products: number } })[]>([]);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     async function loadHomeData() {
       try {
-        const cats = await api.get<any[]>('/categories');
+        const cats = await api.get<(Category & { _count?: { products: number } })[]>('/categories');
         setCategories(cats.slice(0, 4));
 
-        const prodData = await api.get<{ products?: any[] }>('/products?limit=8');
+        const prodData = await api.get<{ products?: Product[] }>('/products?limit=8');
         setFeaturedProducts(prodData.products || []);
       } catch (err) {
         console.error('Failed to load home page data', err);
@@ -34,143 +43,143 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex flex-col min-h-screen bg-bg-base">
+    <div className="flex min-h-screen flex-col bg-bg-base">
       <Header />
 
-      <main className="flex-1">
-        {/* Hero Section */}
-        <section className="relative overflow-hidden py-24 px-4 sm:px-6 lg:px-8">
-          {/* Decorative Backdrops */}
-          <div className="absolute top-1/4 left-1/2 -z-10 h-[400px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/5 blur-3xl" />
-          <div className="absolute top-12 left-12 -z-10 h-32 w-32 rounded-full bg-secondary/10 blur-2xl" />
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
+      <main id="main-content" className="flex-1" tabIndex={-1}>
+        <section className="relative overflow-hidden px-4 py-24 sm:px-6 lg:px-8">
+          <GradientMesh intensity="medium" />
+
+          <motion.div
+            initial={reduced ? { opacity: 0 } : { opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
+            transition={reduced ? { duration: 0.12 } : { duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
             className="mx-auto max-w-4xl text-center"
           >
-            <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl text-text-main">
+            <h1 className="text-4xl font-extrabold tracking-tight text-text-main sm:text-6xl">
               The Future of{' '}
-              <span className="text-primary">
-                Premium Shopping
-              </span>
+              <span className="text-primary">Premium Shopping</span>
             </h1>
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
+            <motion.p
+              initial={reduced ? false : { opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
-              className="mt-6 text-lg text-text-muted max-w-2xl mx-auto leading-relaxed"
+              transition={
+                reduced
+                  ? { duration: 0.12 }
+                  : { duration: 0.6, delay: 0.15, ease: [0.22, 1, 0.36, 1] }
+              }
+              className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-text-muted"
             >
-              Explore our handpicked curation of elite fashion, timeless accessories, and groundbreaking gadgets. Designed for the bold.
+              Explore our handpicked curation of elite fashion, timeless accessories, and
+              groundbreaking gadgets. Designed for the bold.
             </motion.p>
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
+            <motion.div
+              initial={reduced ? false : { opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
+              transition={
+                reduced
+                  ? { duration: 0.12 }
+                  : { duration: 0.6, delay: 0.3, ease: [0.22, 1, 0.36, 1] }
+              }
               className="mt-10 flex items-center justify-center gap-6"
             >
-              <Link
-                href="/products"
-                className="rounded-xl bg-primary px-6 py-3.5 text-base font-semibold text-bg-base shadow-xl shadow-primary/20 hover:bg-yellow-400 hover:shadow-primary/30 transition-all duration-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base"
-              >
-                Shop Collection
-              </Link>
+              <MagneticLink href="/products">Shop Collection</MagneticLink>
               <a
                 href="#featured"
-                className="text-base font-semibold leading-6 text-text-muted hover:text-text-main transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-main rounded-md px-3 py-1"
+                className="rounded-md px-3 py-1 text-base font-semibold leading-6 text-text-muted transition-colors duration-200 hover:text-text-main focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-main"
               >
-                Learn more <span aria-hidden="true" className="inline-block transition-transform group-hover:translate-x-1">→</span>
+                Learn more <span aria-hidden="true">→</span>
               </a>
             </motion.div>
           </motion.div>
         </section>
 
-        {/* Categories Section */}
-        <section className="py-16 bg-surface/50 border-y border-border">
+        <section className="border-y border-border bg-surface/50 py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center md:text-left mb-10">
+            <FadeIn className="mb-10 text-center md:text-left">
               <h2 className="text-2xl font-extrabold text-text-main">Browse by Category</h2>
-              <p className="mt-1 text-sm text-text-muted">Discover collections tailored to your lifestyle.</p>
-            </div>
+              <p className="mt-1 text-sm text-text-muted">
+                Discover collections tailored to your lifestyle.
+              </p>
+            </FadeIn>
 
             {loading ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
                 {[...Array(4)].map((_, i) => (
                   <CategorySkeleton key={i} />
                 ))}
               </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {categories.length > 0 ? (
-                  categories.map((category) => (
+            ) : categories.length > 0 ? (
+              <Stagger className="grid grid-cols-2 gap-6 md:grid-cols-4">
+                {categories.map((category) => (
+                  <StaggerItem key={category.id}>
                     <Link
-                      key={category.id}
                       href={`/products?categoryId=${category.id}`}
-                      className="group flex flex-col items-center justify-center p-6 rounded-2xl border border-border bg-surface hover:bg-surface/80 hover:border-secondary transition-all duration-300 hover:shadow-lg hover:-translate-y-1 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      className="group flex flex-col items-center justify-center rounded-2xl border border-border bg-surface p-6 transition-all duration-300 hover:-translate-y-1 hover:border-secondary hover:bg-surface/80 hover:shadow-lg hover:shadow-primary/5 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     >
-                      <h3 className="text-base font-bold text-text-main group-hover:text-primary transition-colors">
+                      <h3 className="text-base font-bold text-text-main transition-colors group-hover:text-primary">
                         {category.name}
                       </h3>
                       <span className="mt-1.5 text-xs text-text-muted">
                         {category._count?.products || 0} Products
                       </span>
                     </Link>
-                  ))
-                ) : (
-                  <div className="col-span-4 p-8 text-center rounded-2xl border border-dashed border-border bg-surface/50 text-text-muted">
-                    No categories configured yet. Sign in as Admin to create one!
-                  </div>
-                )}
-              </div>
+                  </StaggerItem>
+                ))}
+              </Stagger>
+            ) : (
+              <EmptyState
+                title="No categories yet"
+                description="Sign in as Admin to create your first collection."
+              />
             )}
           </div>
         </section>
 
-        {/* Featured Products */}
         <section id="featured" className="py-20">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-12">
+            <FadeIn className="mb-12 flex flex-col justify-between md:flex-row md:items-end">
               <div className="text-center md:text-left">
                 <h2 className="text-3xl font-extrabold text-text-main">Featured Products</h2>
-                <p className="mt-2 text-sm text-text-muted">Handpicked items from our premium catalog.</p>
+                <p className="mt-2 text-sm text-text-muted">
+                  Handpicked items from our premium catalog.
+                </p>
               </div>
               <Link
                 href="/products"
-                className="hidden md:flex items-center text-sm font-semibold text-primary hover:text-yellow-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md px-2 py-1"
+                className="mt-4 hidden items-center rounded-md px-2 py-1 text-sm font-semibold text-primary transition-colors hover:text-yellow-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:mt-0 md:flex"
               >
-                View all items <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
+                View all items <span className="ml-1">→</span>
               </Link>
-            </div>
+            </FadeIn>
 
             {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
+              <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-4">
                 {[...Array(4)].map((_, i) => (
                   <ProductSkeleton key={i} />
                 ))}
               </div>
+            ) : featuredProducts.length > 0 ? (
+              <Stagger className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-4">
+                {featuredProducts.map((product) => (
+                  <StaggerItem key={product.id}>
+                    <ProductCard product={product} />
+                  </StaggerItem>
+                ))}
+              </Stagger>
             ) : (
-              <div>
-                {featuredProducts.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
-                    {featuredProducts.map((product) => (
-                      <ProductCard key={product.id} product={product} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-16 text-center rounded-2xl border border-dashed border-border bg-surface/50">
-                    <p className="text-text-muted mb-6">No products found in the catalog.</p>
-                    {categories.length > 0 && (
-                      <Link
-                        href="/login"
-                        className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-bg-base shadow-md transition-all active:scale-[0.97]"
-                      >
-                        Sign in as Admin to Add Products
-                      </Link>
-                    )}
-                  </div>
-                )}
-              </div>
+              <EmptyState
+                title="No products found"
+                description="The catalog is empty. Add products from the admin panel."
+                action={
+                  <Link
+                    href="/sign-in"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-bg-base shadow-md transition-all active:scale-[0.97]"
+                  >
+                    Sign in as Admin
+                  </Link>
+                }
+              />
             )}
           </div>
         </section>

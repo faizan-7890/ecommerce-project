@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { MotionConfig } from 'framer-motion';
 import { CartProvider } from './CartContext';
 import { ToastProvider } from './ToastContext';
 import { WishlistProvider } from './WishlistContext';
@@ -10,15 +11,14 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
-      <ToastProvider>
-        <TokenSync />
-        <WishlistProvider>
-          <CartProvider>
-            {children}
-          </CartProvider>
-        </WishlistProvider>
-      </ToastProvider>
+      <MotionConfig reducedMotion="user">
+        <ToastProvider>
+          <TokenSync />
+          <WishlistProvider>
+            <CartProvider>{children}</CartProvider>
+          </WishlistProvider>
+        </ToastProvider>
+      </MotionConfig>
     </ErrorBoundary>
   );
 }
-
