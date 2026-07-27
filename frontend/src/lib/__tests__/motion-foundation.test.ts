@@ -20,7 +20,7 @@ assert(flags.motionPrimitives === true, 'motionPrimitives default on');
 assert(flags.gradientMesh === true, 'gradientMesh default on');
 assert(flags.confettiSuccess === true, 'confettiSuccess default on');
 assert(flags.magneticCta === true, 'magneticCta default on');
-assert(flags.pageTransitions === false, 'pageTransitions default off');
+assert(flags.pageTransitions === true, 'pageTransitions enabled for PR7');
 assert(flags.freeShippingProgress === false, 'freeShippingProgress default off');
 
 // variants export real Framer-compatible shapes used by primitives

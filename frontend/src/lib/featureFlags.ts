@@ -4,7 +4,7 @@ export const flags = {
   gradientMesh: true,
   confettiSuccess: true,
   magneticCta: true,
-  pageTransitions: false,
+  pageTransitions: true,
   freeShippingProgress: false,
 } as const;
 
