@@ -18,26 +18,24 @@ def decrement_variant_stock(
     Atomically decrement variant stock with row-level locking.
     Raises ValueError if insufficient stock.
     """
-    # Row-level lock using FOR UPDATE
-    result = db.execute(
-        text("SELECT id, stock FROM product_variants WHERE id = :vid FOR UPDATE"),
-        {"vid": variant_id},
+    # SQLAlchemy emits a row-level lock on databases that support it and safely
+    # omits it for SQLite, which is used by the local-development fallback.
+    variant = (
+        db.query(ProductVariant)
+        .filter(ProductVariant.id == variant_id)
+        .with_for_update()
+        .first()
     )
-    row = result.fetchone()
 
-    if not row:
+    if not variant:
         raise ValueError(f"Variant {variant_id} not found")
 
-    current_stock = row[1]
+    current_stock = variant.stock
     if current_stock < quantity:
         raise ValueError(f"Insufficient stock for variant {variant_id}. Available: {current_stock}, Requested: {quantity}")
 
     new_stock = current_stock - quantity
-
-    db.execute(
-        text("UPDATE product_variants SET stock = :new_stock WHERE id = :vid"),
-        {"new_stock": new_stock, "vid": variant_id},
-    )
+    variant.stock = new_stock
 
     # Audit log
     log = InventoryLog(

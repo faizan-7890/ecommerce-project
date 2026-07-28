@@ -9,12 +9,11 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import text
 from database import get_db
 from dependencies import get_current_user
 from models import (
     Order, OrderItem, Cart, CartItem, Address, Payment, Coupon, CouponUsage,
-    InventoryLog, User,
+    InventoryLog, Product, User,
 )
 from schemas import OrderCreate, OrderOut, MessageResponse
 from services.inventory import decrement_variant_stock, restore_order_stock
@@ -113,30 +112,36 @@ def create_order(
         applied_coupon = None
 
         if coupon and coupon.is_active:
-            result = db.execute(
-                text('SELECT id, discount_type, discount_value, min_order_amount, usage_limit, expiration_date, is_active FROM coupons WHERE id = :cid FOR UPDATE'),
-                {"cid": coupon.id},
+            locked_coupon = (
+                db.query(Coupon)
+                .filter(Coupon.id == coupon.id)
+                .with_for_update()
+                .first()
             )
-            locked = result.fetchone()
-            if locked and locked[6]:  # is_active
-                min_amount = Decimal(str(locked[3]))
+            if locked_coupon and locked_coupon.is_active:
+                min_amount = Decimal(str(locked_coupon.min_order_amount))
                 meets_min = subtotal >= min_amount
-                not_expired = not locked[5] or locked[5] > datetime.utcnow()
+                not_expired = (
+                    not locked_coupon.expiration_date
+                    or locked_coupon.expiration_date > datetime.utcnow()
+                )
 
                 under_limit = True
-                if locked[4] is not None:  # usage_limit
-                    usage_count = db.query(CouponUsage).filter(CouponUsage.coupon_id == locked[0]).count()
-                    under_limit = usage_count < locked[4]
+                if locked_coupon.usage_limit is not None:
+                    usage_count = db.query(CouponUsage).filter(
+                        CouponUsage.coupon_id == locked_coupon.id
+                    ).count()
+                    under_limit = usage_count < locked_coupon.usage_limit
 
                 if meets_min and not_expired and under_limit:
-                    val = Decimal(str(locked[2]))
-                    if locked[1] == "percentage":
+                    val = Decimal(str(locked_coupon.discount_value))
+                    if locked_coupon.discount_type == "percentage":
                         discount_amount = subtotal * (val / Decimal("100"))
                     else:
                         discount_amount = val
                     if discount_amount > subtotal:
                         discount_amount = subtotal
-                    applied_coupon = locked
+                    applied_coupon = locked_coupon
 
         totals = calculate_order_totals(subtotal, discount_amount)
 
@@ -197,7 +202,7 @@ def create_order(
         # Register coupon usage
         if applied_coupon and discount_amount > 0:
             db.add(CouponUsage(
-                coupon_id=applied_coupon[0],
+                coupon_id=applied_coupon.id,
                 user_id=user.id,
                 order_id=order.id,
             ))
@@ -231,7 +236,7 @@ def get_orders(db: Session = Depends(get_db), user: User = Depends(get_current_u
     orders = (
         db.query(Order)
         .options(
-            joinedload(Order.items).joinedload(OrderItem.product).joinedload("images"),
+            joinedload(Order.items).joinedload(OrderItem.product).joinedload(Product.images),
             joinedload(Order.items).joinedload(OrderItem.variant),
             joinedload(Order.payments),
             joinedload(Order.refunds),
