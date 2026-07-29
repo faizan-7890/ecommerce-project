@@ -3,7 +3,7 @@ Coupons router — CRUD and validation.
 """
 from typing import List
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
@@ -24,7 +24,7 @@ def validate_coupon(
     if not coupon or not coupon.is_active:
         raise HTTPException(status_code=404, detail="Invalid or inactive coupon code")
 
-    if coupon.expiration_date and coupon.expiration_date < datetime.utcnow():
+    if coupon.expiration_date and coupon.expiration_date < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Coupon has expired")
 
     if coupon.usage_limit:

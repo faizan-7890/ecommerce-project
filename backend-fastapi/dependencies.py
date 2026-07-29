@@ -86,12 +86,10 @@ async def get_current_user(
     try:
         jwks_data = await _get_clerk_jwks()
         payload = _verify_clerk_token(token, jwks_data)
+    except HTTPException:
+        raise
     except Exception as e:
-        # Fall back to decoding unverified claims if JWKS fetch/verification fails (e.g. placeholder JWKS URL)
-        try:
-            payload = jwt.get_unverified_claims(token)
-        except Exception:
-            raise HTTPException(status_code=401, detail="Not authorized, invalid token")
+        raise HTTPException(status_code=401, detail="Not authorized, token verification failed")
 
     clerk_id = payload.get("sub")
     if not clerk_id:
@@ -103,6 +101,7 @@ async def get_current_user(
     if not user:
         # Try to find user by email from Clerk token claims
         email = payload.get("email") or payload.get("email_address")
+        name = "New User"  # safe default; overwritten below when possible
 
         if not email:
             # Try fetching from Clerk API if valid secret key present
@@ -154,7 +153,7 @@ async def get_current_user(
             user = User(
                 clerk_id=clerk_id,
                 email=email,
-                name=name if 'name' in dir() else "New User",
+                name=name,
                 password=dummy_pw,
                 role_id=customer_role.id,
                 email_verified=True,

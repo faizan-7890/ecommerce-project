@@ -12,4 +12,4 @@ def can_restore_stock(order) -> bool:
     """Check if stock should be restored for this order."""
     if order.stock_restored:
         return False
-    return True
+    return order.order_status in RESTORABLE_STATUSES

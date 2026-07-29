@@ -6,9 +6,9 @@ import os
 import random
 import string
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Header
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from database import get_db
 from dependencies import get_current_user
 from models import (
@@ -123,7 +123,7 @@ def create_order(
                 meets_min = subtotal >= min_amount
                 not_expired = (
                     not locked_coupon.expiration_date
-                    or locked_coupon.expiration_date > datetime.utcnow()
+                    or locked_coupon.expiration_date > datetime.now(timezone.utc)
                 )
 
                 under_limit = True
@@ -147,7 +147,7 @@ def create_order(
 
         expires_at = None
         if data.payment_method != "cod":
-            expires_at = datetime.utcnow() + timedelta(minutes=ORDER_EXPIRY_MINUTES)
+            expires_at = datetime.now(timezone.utc) + timedelta(minutes=ORDER_EXPIRY_MINUTES)
 
         # Create order
         order = Order(
@@ -236,23 +236,16 @@ def get_orders(db: Session = Depends(get_db), user: User = Depends(get_current_u
     orders = (
         db.query(Order)
         .options(
-            joinedload(Order.items).joinedload(OrderItem.product).joinedload(Product.images),
-            joinedload(Order.items).joinedload(OrderItem.variant),
-            joinedload(Order.payments),
-            joinedload(Order.refunds),
+            selectinload(Order.items).selectinload(OrderItem.product).selectinload(Product.images),
+            selectinload(Order.items).selectinload(OrderItem.variant),
+            selectinload(Order.payments),
+            selectinload(Order.refunds),
         )
         .filter(Order.user_id == user.id)
         .order_by(Order.created_at.desc())
         .all()
     )
-    # Deduplicate
-    seen = set()
-    unique = []
-    for o in orders:
-        if o.id not in seen:
-            seen.add(o.id)
-            unique.append(o)
-    return unique
+    return orders
 
 
 # ─── Get Order Detail ────────────────────────────────────────────────────────

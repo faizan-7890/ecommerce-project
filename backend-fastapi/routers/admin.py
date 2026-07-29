@@ -5,7 +5,7 @@ from typing import List, Optional
 from decimal import Decimal
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func
 from database import get_db
 from dependencies import require_admin
@@ -96,8 +96,8 @@ def list_all_orders(
 ):
     query = db.query(Order).options(
         joinedload(Order.user),
-        joinedload(Order.items),
-        joinedload(Order.payments),
+        selectinload(Order.items),
+        selectinload(Order.payments),
     )
 
     if status:
@@ -110,14 +110,6 @@ def list_all_orders(
         .limit(limit)
         .all()
     )
-
-    # Deduplicate
-    seen = set()
-    unique = []
-    for o in orders:
-        if o.id not in seen:
-            seen.add(o.id)
-            unique.append(o)
 
     return {
         "orders": [
@@ -132,7 +124,7 @@ def list_all_orders(
                 "itemCount": len(o.items),
                 "createdAt": o.created_at.isoformat(),
             }
-            for o in unique
+            for o in orders
         ],
         "total": total,
         "page": page,
@@ -176,20 +168,14 @@ def list_all_products(
     products = (
         db.query(Product)
         .options(
-            joinedload(Product.images),
-            joinedload(Product.category),
-            joinedload(Product.variants),
+            selectinload(Product.images),
+            selectinload(Product.category),
+            selectinload(Product.variants),
         )
         .order_by(Product.created_at.desc())
         .all()
     )
-    seen = set()
-    unique = []
-    for p in products:
-        if p.id not in seen:
-            seen.add(p.id)
-            unique.append(p)
-    return unique
+    return products
 
 
 # ─── All Categories with product count ───────────────────────────────────────

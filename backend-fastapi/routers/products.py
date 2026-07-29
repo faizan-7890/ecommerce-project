@@ -5,7 +5,7 @@ import re
 import time
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from database import get_db
 from dependencies import get_current_user, require_admin
 from models import Product, ProductVariant, ProductImage, InventoryLog, User
@@ -66,23 +66,15 @@ def list_products(
     total = query.count()
     skip = (page - 1) * limit
     products = (
-        query.options(joinedload(Product.images), joinedload(Product.category), joinedload(Product.variants))
+        query.options(selectinload(Product.images), selectinload(Product.category), selectinload(Product.variants))
         .order_by(order_col)
         .offset(skip)
         .limit(limit)
         .all()
     )
 
-    # Deduplicate due to joinedload
-    seen = set()
-    unique_products = []
-    for p in products:
-        if p.id not in seen:
-            seen.add(p.id)
-            unique_products.append(p)
-
     return ProductListResponse(
-        products=unique_products,
+        products=products,
         page=page,
         limit=limit,
         total_pages=(total + limit - 1) // limit,
@@ -96,7 +88,7 @@ def get_product_by_slug(slug: str, db: Session = Depends(get_db)):
     """Lookup a product by its URL-friendly slug. Useful for SEO-friendly routing."""
     product = (
         db.query(Product)
-        .options(joinedload(Product.images), joinedload(Product.category), joinedload(Product.variants))
+        .options(selectinload(Product.images), selectinload(Product.category), selectinload(Product.variants))
         .filter(Product.slug == slug, Product.status == "active")
         .first()
     )
@@ -113,7 +105,7 @@ def get_product(product_id: str, db: Session = Depends(get_db)):
         pid = int(product_id)
         product = (
             db.query(Product)
-            .options(joinedload(Product.images), joinedload(Product.category), joinedload(Product.variants))
+            .options(selectinload(Product.images), selectinload(Product.category), selectinload(Product.variants))
             .filter(Product.id == pid, Product.status == "active")
             .first()
         )
@@ -121,7 +113,7 @@ def get_product(product_id: str, db: Session = Depends(get_db)):
         # Treat as slug fallback
         product = (
             db.query(Product)
-            .options(joinedload(Product.images), joinedload(Product.category), joinedload(Product.variants))
+            .options(selectinload(Product.images), selectinload(Product.category), selectinload(Product.variants))
             .filter(Product.slug == product_id, Product.status == "active")
             .first()
         )

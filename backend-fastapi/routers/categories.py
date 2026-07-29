@@ -52,6 +52,14 @@ def delete_category(
     if not cat:
         raise HTTPException(status_code=404, detail="Category not found")
 
+    from models import Product
+    product_count = db.query(Product).filter(Product.category_id == category_id).count()
+    if product_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete category with {product_count} associated product(s). Reassign or remove them first.",
+        )
+
     db.delete(cat)
     db.commit()
     return {"message": "Category deleted successfully"}

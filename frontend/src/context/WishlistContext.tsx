@@ -10,10 +10,13 @@ export interface WishlistItem {
   productId: number;
   product?: {
     id: number;
-    title: string;
-    price: number;
-    image?: string;
+    name: string;
+    basePrice: number;
+    discountPrice: number;
+    slug?: string;
+    images?: { id: number; url: string }[];
   };
+  createdAt?: string;
 }
 
 interface WishlistContextType {

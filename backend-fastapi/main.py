@@ -2,6 +2,7 @@
 Veloce E-Commerce Backend — FastAPI + MySQL
 Main application entry point.
 """
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -14,13 +15,30 @@ load_dotenv()
 from database import engine, Base, get_db
 from routers import products, categories, cart, orders, users, wishlist, reviews, coupons, payments, admin
 
-# Create all tables on startup
-# Table creation is deferred to startup event below
+# Table creation is handled via the lifespan context manager below
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Create database tables and auto-seed default products on startup."""
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("[OK] Database tables created/verified successfully")
+        try:
+            from seed import seed_data
+            seed_data()
+        except Exception as se:
+            print(f"[WARN] Auto-seeding skipped: {se}")
+    except Exception as e:
+        print(f"[WARN] Could not initialize database: {e}")
+    yield
+
 
 app = FastAPI(
     title="Veloce E-Commerce API",
     description="Production-grade e-commerce REST API built with FastAPI and MySQL",
     version="2.0.0",
+    lifespan=lifespan,
 )
 
 # CORS configuration
@@ -52,23 +70,10 @@ async def add_security_and_telemetry_headers(request: Request, call_next):
 async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
-        content={"message": str(exc) if os.getenv("NODE_ENV") != "production" else "Internal Server Error"},
+        content={"message": str(exc) if os.getenv("APP_ENV") != "production" else "Internal Server Error"},
     )
 
 
-@app.on_event("startup")
-def on_startup():
-    """Create database tables and auto-seed default products."""
-    try:
-        Base.metadata.create_all(bind=engine)
-        print("[OK] Database tables created/verified successfully")
-        try:
-            from seed import seed_data
-            seed_data()
-        except Exception as se:
-            print(f"[WARN] Auto-seeding skipped: {se}")
-    except Exception as e:
-        print(f"[WARN] Could not initialize database: {e}")
 
 
 # ─── Health Check ────────────────────────────────────────────────────────────
@@ -114,13 +119,7 @@ app.include_router(payments.router)
 app.include_router(admin.router)
 
 
-# ─── 404 Handler ─────────────────────────────────────────────────────────────
-@app.api_route("/{path_name:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def catch_all(request: Request, path_name: str):
-    return JSONResponse(
-        status_code=404,
-        content={"message": f"Route not found - /{path_name}"},
-    )
+
 
 
 if __name__ == "__main__":

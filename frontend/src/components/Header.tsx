@@ -27,7 +27,7 @@ interface SearchResultProduct {
 
 export default function Header() {
   const { user, isSignedIn } = useUser();
-  const { cart } = useCart();
+  const { cart, totalItems } = useCart();
   const { wishlistIds } = useWishlist();
   const router = useRouter();
   const pathname = usePathname();
@@ -95,7 +95,7 @@ export default function Header() {
     }
   };
 
-  const cartCount = cart?.totalItems ?? 0;
+  const cartCount = totalItems;
 
   return (
     <header

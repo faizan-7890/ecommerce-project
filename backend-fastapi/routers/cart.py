@@ -5,7 +5,7 @@ can call setCart(data) directly without a follow-up refresh.
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from database import get_db
 from dependencies import get_current_user
 from models import Cart, CartItem, Product, ProductVariant, User
@@ -29,8 +29,8 @@ def _fetch_full_cart(db: Session, cart_id: int) -> Cart:
     return (
         db.query(Cart)
         .options(
-            joinedload(Cart.items).joinedload(CartItem.product).joinedload(Product.images),
-            joinedload(Cart.items).joinedload(CartItem.variant),
+            selectinload(Cart.items).selectinload(CartItem.product).selectinload(Product.images),
+            selectinload(Cart.items).selectinload(CartItem.variant),
         )
         .filter(Cart.id == cart_id)
         .first()
@@ -43,8 +43,8 @@ def get_cart(db: Session = Depends(get_db), user: User = Depends(get_current_use
     cart = (
         db.query(Cart)
         .options(
-            joinedload(Cart.items).joinedload(CartItem.product).joinedload(Product.images),
-            joinedload(Cart.items).joinedload(CartItem.variant),
+            selectinload(Cart.items).selectinload(CartItem.product).selectinload(Product.images),
+            selectinload(Cart.items).selectinload(CartItem.variant),
         )
         .filter(Cart.id == cart.id)
         .first()

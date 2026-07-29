@@ -3,7 +3,7 @@ Wishlist router — toggle wishlist items.
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, selectinload
 from database import get_db
 from dependencies import get_current_user
 from models import WishlistItem, Product, User
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/wishlist", tags=["Wishlist"])
 def get_wishlist(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     items = (
         db.query(WishlistItem)
-        .options(joinedload(WishlistItem.product).joinedload(Product.images))
+        .options(selectinload(WishlistItem.product).selectinload(Product.images))
         .filter(WishlistItem.user_id == user.id)
         .order_by(WishlistItem.created_at.desc())
         .all()

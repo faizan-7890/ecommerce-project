@@ -1,36 +1,17 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { useUser } from '@clerk/nextjs';
-
-interface CartItem {
-  id: number;
-  productId: number;
-  variantId: number | null;
-  sku: string;
-  name: string;
-  basePrice: number;
-  discount: number;
-  finalUnitPrice: number;
-  quantity: number;
-  stock: number;
-  size: string | null;
-  color: string | null;
-  image: string | null;
-  subtotal: number;
-}
-
-interface Cart {
-  id: number;
-  items: CartItem[];
-  subtotal: number;
-  totalItems: number;
-}
+import type { Cart as RawCart, CartItem as RawCartItem } from '@/types';
 
 interface CartContextType {
-  cart: Cart | null;
+  cart: RawCart | null;
   loading: boolean;
+  /** Total number of individual items (sum of quantities) */
+  totalItems: number;
+  /** Cart subtotal computed from product prices × quantities */
+  subtotal: number;
   addToCart: (productId: number, variantId?: number | null, quantity?: number) => Promise<void>;
   updateQuantity: (itemId: number, quantity: number) => Promise<void>;
   removeFromCart: (itemId: number) => Promise<void>;
@@ -40,16 +21,34 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+/** Compute the effective unit price for a cart item (variant price wins, then discount, then base). */
+function getItemUnitPrice(item: RawCartItem): number {
+  if (item.variant?.price != null) return Number(item.variant.price);
+  const base = Number(item.product?.basePrice ?? 0);
+  const discount = Number(item.product?.discountPrice ?? 0);
+  return Math.max(base - discount, 0);
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useUser();
-  const [cart, setCart] = useState<Cart | null>(null);
+  const [cart, setCart] = useState<RawCart | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const totalItems = useMemo(() => {
+    if (!cart?.items) return 0;
+    return cart.items.reduce((sum, item) => sum + item.quantity, 0);
+  }, [cart]);
+
+  const subtotal = useMemo(() => {
+    if (!cart?.items) return 0;
+    return cart.items.reduce((sum, item) => sum + getItemUnitPrice(item) * item.quantity, 0);
+  }, [cart]);
 
   const refreshCart = useCallback(async () => {
     if (!isSignedIn) return;
     setLoading(true);
     try {
-      const data = await api.get<Cart>('/cart');
+      const data = await api.get<RawCart>('/cart');
       setCart(data);
     } catch (err) {
       console.warn('Could not fetch cart:', err);
@@ -70,7 +69,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    api.get<Cart>('/cart')
+    api.get<RawCart>('/cart')
       .then((data) => {
         if (!isCancelled) setCart(data);
       })
@@ -90,8 +89,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
     setLoading(true);
     try {
-      const data = await api.post<Cart>('/cart/items', { productId, variantId, quantity });
-      setCart(data); // backend now returns full CartOut
+      const data = await api.post<RawCart>('/cart/items', { productId, variantId, quantity });
+      setCart(data); // backend returns full CartOut
     } catch (err) {
       throw err;
     } finally {
@@ -102,8 +101,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const updateQuantity = async (itemId: number, quantity: number) => {
     setLoading(true);
     try {
-      const data = await api.put<Cart>(`/cart/items/${itemId}`, { quantity });
-      setCart(data); // backend now returns full CartOut
+      const data = await api.put<RawCart>(`/cart/items/${itemId}`, { quantity });
+      setCart(data); // backend returns full CartOut
     } catch (err) {
       throw err;
     } finally {
@@ -114,8 +113,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const removeFromCart = async (itemId: number) => {
     setLoading(true);
     try {
-      const data = await api.delete<Cart>(`/cart/items/${itemId}`);
-      setCart(data); // backend now returns full CartOut
+      const data = await api.delete<RawCart>(`/cart/items/${itemId}`);
+      setCart(data); // backend returns full CartOut
     } catch (err) {
       throw err;
     } finally {
@@ -132,6 +131,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       value={{
         cart,
         loading,
+        totalItems,
+        subtotal,
         addToCart,
         updateQuantity,
         removeFromCart,

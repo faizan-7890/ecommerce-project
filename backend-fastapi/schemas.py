@@ -1,7 +1,7 @@
 """
 Pydantic schemas for request/response validation.
 """
-from pydantic import BaseModel as PydanticBaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel as PydanticBaseModel, EmailStr, Field, ConfigDict
 from pydantic.alias_generators import to_camel
 
 class BaseModel(PydanticBaseModel):
@@ -286,7 +286,7 @@ class OrderOut(BaseModel):
 class ReviewCreate(BaseModel):
     product_id: int
     order_item_id: Optional[int] = None
-    rating: int  # 1 to 5
+    rating: int = Field(ge=1, le=5)  # 1 to 5
     comment: Optional[str] = None
 
 
