@@ -145,3 +145,85 @@ export interface Coupon {
 export interface ApiError {
   message: string;
 }
+
+export interface Review {
+  id: number;
+  userId: number;
+  productId: number;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  user?: Pick<User, 'id' | 'name' | 'email'>;
+}
+
+export interface ProductListResponse {
+  products: Product[];
+  page: number;
+  limit: number;
+  totalPages: number;
+  totalProducts: number;
+}
+
+export interface AdminLowStockProduct {
+  name: string;
+  sku: string;
+  stock: number;
+  threshold: number;
+}
+
+export interface AdminBestSeller {
+  id: number;
+  name: string;
+  totalQty: number;
+  revenue: number;
+}
+
+export interface AdminAuditLog {
+  id: number;
+  action: string;
+  description: string;
+  timestamp: string;
+  user?: Pick<User, 'name'>;
+}
+
+export interface AdminStats {
+  salesSummary: {
+    totalRevenue: number;
+    totalOrders: number;
+    totalProducts: number;
+    totalCustomers: number;
+  };
+  timeSeriesData: { date: string; revenue: number; orders?: number }[];
+  lowStockProducts: AdminLowStockProduct[];
+  bestSellers: AdminBestSeller[];
+  auditLogs: AdminAuditLog[];
+}
+
+export interface AdminCategory extends Category {
+  productCount: number;
+}
+
+export interface AdminOrderSummary {
+  id: number;
+  orderNumber: string;
+  userId: number;
+  user?: { name: string; email: string };
+  total: number;
+  orderStatus: string;
+  paymentStatus: string;
+  shipmentStatus: string;
+  itemCount: number;
+  items: Pick<OrderItem, 'id' | 'productNameSnapshot' | 'quantity'>[];
+  createdAt: string;
+}
+
+export interface AdminOrdersResponse {
+  orders: AdminOrderSummary[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export interface AdminCoupon extends Coupon {
+  usageCount: number;
+}

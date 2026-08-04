@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   # 1. MySQL 8 Database Service
@@ -7,12 +7,10 @@ services:
     container_name: veloce-db-prod
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_secure_pass}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
       MYSQL_DATABASE: veloce_db
-      MYSQL_USER: ${MYSQL_USER:-veloce_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-veloce_pass}
-    ports:
-      - "3306:3306"
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER must be set}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}
     volumes:
       - veloce_mysql_prod_data:/var/lib/mysql
     healthcheck:
@@ -27,12 +25,13 @@ services:
       context: ./backend-fastapi
       dockerfile: Dockerfile
     container_name: veloce-backend-prod
+    command: gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000
     restart: always
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-veloce_user}:${MYSQL_PASSWORD:-veloce_pass}@db:3306/veloce_db
-      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:?MYSQL_USER must be set}:${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}@db:3306/veloce_db
+      - FRONTEND_URL=${FRONTEND_URL:?FRONTEND_URL must be set}
       - NODE_ENV=production
     env_file:
       - ./backend-fastapi/.env
@@ -45,13 +44,15 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL must be set}
     container_name: veloce-frontend-prod
     restart: always
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://backend:8000/api
+
     depends_on:
       - backend
 

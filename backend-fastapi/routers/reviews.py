@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from dependencies import get_current_user
-from models import Review, Product, User
+from models import Review, Product, User, Order, OrderItem
 from schemas import ReviewCreate, ReviewOut
 
 router = APIRouter(prefix="/api/reviews", tags=["Reviews"])
@@ -37,6 +37,34 @@ def create_review(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    purchased_item = None
+    if data.order_item_id:
+        purchased_item = (
+            db.query(OrderItem)
+            .join(Order, Order.id == OrderItem.order_id)
+            .filter(
+                OrderItem.id == data.order_item_id,
+                OrderItem.product_id == data.product_id,
+                Order.user_id == user.id,
+                Order.order_status != "cancelled",
+            )
+            .first()
+        )
+        if not purchased_item:
+            raise HTTPException(status_code=400, detail="Review must reference one of your purchased items")
+    else:
+        purchased_item = (
+            db.query(OrderItem)
+            .join(Order, Order.id == OrderItem.order_id)
+            .filter(
+                OrderItem.product_id == data.product_id,
+                Order.user_id == user.id,
+                Order.order_status != "cancelled",
+            )
+            .first()
+        )
+        if not purchased_item:
+            raise HTTPException(status_code=400, detail="Only customers who purchased this product can review it")
     existing = db.query(Review).filter(
         Review.user_id == user.id, Review.product_id == data.product_id
     ).first()
@@ -46,7 +74,7 @@ def create_review(
     review = Review(
         user_id=user.id,
         product_id=data.product_id,
-        order_item_id=data.order_item_id,
+        order_item_id=purchased_item.id,
         rating=data.rating,
         comment=data.comment,
     )

@@ -10,7 +10,7 @@ class BaseModel(PydanticBaseModel):
         populate_by_name=True,
         from_attributes=True,  # all child schemas inherit ORM mode
     )
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime
 from decimal import Decimal
 
@@ -111,7 +111,7 @@ class ProductImageCreate(BaseModel):
 class ProductVariantCreate(BaseModel):
     sku: str
     price: Optional[Decimal] = None
-    stock: int = 0
+    stock: int = Field(default=0, ge=0)
     size: Optional[str] = None
     color: Optional[str] = None
     material: Optional[str] = None
@@ -120,7 +120,7 @@ class ProductVariantCreate(BaseModel):
 class ProductVariantUpdate(BaseModel):
     sku: Optional[str] = None
     price: Optional[Decimal] = None
-    stock: Optional[int] = None
+    stock: Optional[int] = Field(default=None, ge=0)
     size: Optional[str] = None
     color: Optional[str] = None
     material: Optional[str] = None
@@ -197,11 +197,11 @@ class ProductListResponse(BaseModel):
 class CartItemCreate(BaseModel):
     product_id: int
     variant_id: Optional[int] = None
-    quantity: int = 1
+    quantity: int = Field(default=1, gt=0)
 
 
 class CartItemUpdate(BaseModel):
-    quantity: int
+    quantity: int = Field(ge=0)
 
 
 class CartItemOut(BaseModel):
@@ -253,7 +253,7 @@ class RefundOut(BaseModel):
     id: int
     payment_id: int
     order_id: int
-    amount: Decimal
+    amount: Decimal = Field(gt=0)
     reason: str
     status: str
     razorpay_refund_id: Optional[str] = None
@@ -315,8 +315,8 @@ class WishlistItemOut(BaseModel):
 # ─── Coupon ──────────────────────────────────────────────────────────────────
 class CouponCreate(BaseModel):
     code: str
-    discount_type: str  # "percentage" or "fixed"
-    discount_value: Decimal
+    discount_type: Literal["percentage", "fixed"]
+    discount_value: Decimal = Field(gt=0)
     min_order_amount: Decimal = Decimal("0.00")
     usage_limit: Optional[int] = None
     expiration_date: Optional[datetime] = None
@@ -327,7 +327,7 @@ class CouponOut(BaseModel):
     id: int
     code: str
     discount_type: str
-    discount_value: Decimal
+    discount_value: Decimal = Field(gt=0)
     min_order_amount: Decimal
     usage_limit: Optional[int] = None
     expiration_date: Optional[datetime] = None
@@ -361,5 +361,5 @@ class OrderStatusUpdate(BaseModel):
 
 class AdminRefundCreate(BaseModel):
     payment_id: int
-    amount: Decimal
+    amount: Decimal = Field(gt=0)
     reason: str

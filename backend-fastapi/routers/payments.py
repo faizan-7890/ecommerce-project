@@ -10,6 +10,7 @@ from decimal import Decimal
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from database import get_db
 from dependencies import get_current_user, require_admin
 from models import Order, Payment, Refund, ProcessedWebhookEvent, User
@@ -79,7 +80,7 @@ def create_payment_order(
     if order.payment_status == "paid":
         raise HTTPException(status_code=400, detail="Order already paid")
 
-    amount_paise = int(float(order.total) * 100)
+    amount_paise = int(Decimal(str(order.total)) * 100)
     client = _get_razorpay_client()
 
     if client:
@@ -117,7 +118,15 @@ def verify_payment(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    payment = db.query(Payment).filter(Payment.razorpay_order_id == data.razorpay_order_id).first()
+    payment = (
+        db.query(Payment)
+        .join(Order, Payment.order_id == Order.id)
+        .filter(
+            Payment.razorpay_order_id == data.razorpay_order_id,
+            Order.user_id == user.id,
+        )
+        .first()
+    )
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
 
@@ -152,7 +161,12 @@ async def payment_webhook(request: Request, db: Session = Depends(get_db)):
     signature = request.headers.get("x-razorpay-signature", "")
     webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
 
-    if webhook_secret and signature:
+    environment = os.getenv("APP_ENV", os.getenv("NODE_ENV", "development")).lower()
+    if not webhook_secret and environment == "production":
+        raise HTTPException(status_code=503, detail="Payment webhook is not configured")
+    if webhook_secret:
+        if not signature:
+            raise HTTPException(status_code=400, detail="Missing webhook signature")
         expected = hmac.new(
             webhook_secret.encode("utf-8"),
             body,
@@ -162,9 +176,16 @@ async def payment_webhook(request: Request, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
     import json
-    payload = json.loads(body)
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid webhook payload")
+
     event_type = payload.get("event", "")
-    event_id = payload.get("payload", {}).get("payment", {}).get("entity", {}).get("id", "")
+    entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
+    event_id = payload.get("id") or entity.get("id") or hashlib.sha256(body).hexdigest()
+    if not event_type:
+        raise HTTPException(status_code=400, detail="Webhook event type is required")
 
     event_key = f"{event_type}:{event_id}"
 
@@ -202,6 +223,17 @@ def process_refund(
     order = db.query(Order).filter(Order.id == payment.order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    if payment.status not in {"paid", "partially_refunded"}:
+        raise HTTPException(status_code=400, detail="Only paid payments can be refunded")
+
+    refund_amount = Decimal(str(data.amount))
+    refunded_total = db.query(func.coalesce(func.sum(Refund.amount), 0)).filter(
+        Refund.payment_id == payment.id,
+        Refund.status == "completed",
+    ).scalar() or Decimal("0")
+    remaining_amount = Decimal(str(payment.amount)) - Decimal(str(refunded_total))
+    if refund_amount > remaining_amount:
+        raise HTTPException(status_code=400, detail="Refund exceeds the remaining refundable amount")
 
     client = _get_razorpay_client()
     razorpay_refund_id = None
@@ -209,7 +241,7 @@ def process_refund(
     if client and payment.razorpay_payment_id:
         try:
             rzp_refund = client.payment.refund(payment.razorpay_payment_id, {
-                "amount": int(float(data.amount) * 100),
+                "amount": int(refund_amount * 100),
             })
             razorpay_refund_id = rzp_refund.get("id")
         except Exception as e:
@@ -218,15 +250,18 @@ def process_refund(
     refund = Refund(
         payment_id=payment.id,
         order_id=order.id,
-        amount=data.amount,
+        amount=refund_amount,
         reason=data.reason,
         status="completed",
         razorpay_refund_id=razorpay_refund_id,
     )
     db.add(refund)
 
-    order.refund_status = "completed"
-    order.payment_status = "refunded"
+    new_refunded_total = Decimal(str(refunded_total)) + refund_amount
+    is_full_refund = new_refunded_total >= Decimal(str(payment.amount))
+    payment.status = "refunded" if is_full_refund else "partially_refunded"
+    order.refund_status = "completed" if is_full_refund else "partial"
+    order.payment_status = "refunded" if is_full_refund else "partially_refunded"
 
     # Restore stock
     from sqlalchemy.orm import joinedload as jl

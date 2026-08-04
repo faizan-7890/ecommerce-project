@@ -56,11 +56,11 @@ def create_order(
 
     bill_addr = ship_addr
     if data.billing_address_id:
-        ba = db.query(Address).filter(
+        bill_addr = db.query(Address).filter(
             Address.id == data.billing_address_id, Address.user_id == user.id
         ).first()
-        if ba:
-            bill_addr = ba
+        if not bill_addr:
+            raise HTTPException(status_code=400, detail="Invalid billingAddressId")
 
     def _format_snapshot(addr):
         return {

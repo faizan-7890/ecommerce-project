@@ -8,6 +8,11 @@ import { useCart } from '@/context/CartContext';
 import { useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
 
+interface AppliedCoupon {
+  code: string;
+  discountAmount: number;
+}
+
 interface Address {
   id: number;
   fullName: string;
@@ -23,7 +28,7 @@ interface Address {
 }
 
 export default function CheckoutPage() {
-  const { cart, refreshCart } = useCart();
+  const { cart, subtotal: cartSubtotal, refreshCart } = useCart();
   const { user, isLoaded, isSignedIn } = useUser();
   const router = useRouter();
 
@@ -44,7 +49,7 @@ export default function CheckoutPage() {
 
   // Promo Code State
   const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
   const [couponError, setCouponError] = useState('');
 
   // Payment State
@@ -112,9 +117,12 @@ export default function CheckoutPage() {
     try {
       const data = await api.post<any>('/coupons/validate', {
         code: couponCode,
-        subtotal: cart.subtotal,
+        subtotal: cartSubtotal,
       });
-      setAppliedCoupon(data);
+      setAppliedCoupon({
+        code: String(data.code),
+        discountAmount: Number(data.discount_amount ?? data.discountAmount ?? 0),
+      });
     } catch (err: any) {
       setCouponError(err.message || 'Invalid promo code');
     }
@@ -264,7 +272,7 @@ export default function CheckoutPage() {
   };
 
   // Re-calculate checkout summaries
-  const subtotal = cart.subtotal;
+  const subtotal = cartSubtotal;
   const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0;
   const taxableSubtotal = Math.max(subtotal - discountAmount, 0);
   const taxAmount = taxableSubtotal * 0.08;
@@ -509,15 +517,17 @@ export default function CheckoutPage() {
                   {cart.items.map((item) => (
                     <div key={item.id} className="flex justify-between text-xs">
                       <div className="flex flex-col flex-1 pr-2">
-                        <span className="text-slate-350 line-clamp-1 font-medium">{item.name}</span>
-                        {item.size || item.color ? (
+                        <span className="text-slate-350 line-clamp-1 font-medium">{item.product.name}</span>
+                        {item.variant?.size || item.variant?.color ? (
                           <span className="text-[10px] text-slate-500">
-                            Options: {item.size || ''} {item.color || ''}
+                            Options: {item.variant.size || ''} {item.variant.color || ''}
                           </span>
                         ) : null}
                         <span className="text-[10px] text-slate-500">Qty: {item.quantity}</span>
                       </div>
-                      <span className="text-white font-bold">${item.subtotal.toFixed(2)}</span>
+                      <span className="text-white font-bold">
+                        ${(Number(item.variant?.price ?? item.product.basePrice - item.product.discountPrice) * item.quantity).toFixed(2)}
+                      </span>
                     </div>
                   ))}
                 </div>
