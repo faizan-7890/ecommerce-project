@@ -13,6 +13,11 @@ const DEFAULT_COLORS = [
   '#587B7F',
 ];
 
+function seededValue(seed: number): number {
+  const value = Math.sin(seed * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
+}
+
 type ConfettiBurstProps = {
   active: boolean;
   colors?: string[];
@@ -30,19 +35,17 @@ export function ConfettiBurst({
   const [show, setShow] = useState(false);
   const count = Math.min(Math.max(particleCount, 1), 40);
 
-  const particles = useMemo(
-    () =>
-      Array.from({ length: count }, (_, i) => ({
-        id: i,
-        x: (Math.random() - 0.5) * 320,
-        y: -(80 + Math.random() * 220),
-        rotate: Math.random() * 360,
-        color: colors[i % colors.length],
-        size: 6 + Math.random() * 6,
-        delay: Math.random() * 0.15,
-      })),
-    [count, colors]
-  );
+  const particles = useMemo(() => {
+    return Array.from({ length: count }, (_, i) => ({
+      id: i,
+      x: (seededValue(i * 5 + 1) - 0.5) * 320,
+      y: -(80 + seededValue(i * 5 + 2) * 220),
+      rotate: seededValue(i * 5 + 3) * 360,
+      color: colors[i % colors.length],
+      size: 6 + seededValue(i * 5 + 4) * 6,
+      delay: seededValue(i * 5 + 5) * 0.15,
+    }));
+  }, [count, colors]);
 
   useEffect(() => {
     if (!active || !flags.confettiSuccess || reduced) {

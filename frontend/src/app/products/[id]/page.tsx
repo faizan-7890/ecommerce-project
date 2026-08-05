@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -13,15 +13,17 @@ import { formatCurrency } from '@/lib/currency';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FadeIn, MagneticButton, Pressable } from '@/components/motion';
 import { cn } from '@/lib/cn';
+import type { Product, ProductImage, ProductVariant, Review } from '@/types';
+import { getErrorMessage } from '@/lib/errors';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { addToCart } = useCart();
-  const { user, isSignedIn } = useUser();
+  const { isSignedIn } = useUser();
   const { addToast } = useToast();
 
-  const [product, setProduct] = useState<any>(null);
+  const [product, setProduct] = useState<Product | null>(null);
   const [activeImage, setActiveImage] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -29,11 +31,11 @@ export default function ProductDetailPage() {
   // Variants State
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [selectedColor, setSelectedColor] = useState<string>('');
-  const [selectedVariant, setSelectedVariant] = useState<any>(null);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [quantity, setQuantity] = useState(1);
 
   // Reviews State
-  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [reviewSuccess, setReviewSuccess] = useState('');
@@ -44,10 +46,10 @@ export default function ProductDetailPage() {
   const [success, setSuccess] = useState(false);
 
   // Load Product and Reviews
-  const loadProductAndReviews = async () => {
+  const loadProductAndReviews = useCallback(async () => {
     if (!id) return;
     try {
-      const data = await api.get<any>(`/products/${id}`);
+      const data = await api.get<Product>(`/products/${id}`);
       setProduct(data);
       if (data.images && data.images.length > 0) {
         setActiveImage(data.images[0].url);
@@ -57,7 +59,7 @@ export default function ProductDetailPage() {
 
       // Pre-select first variant options if available
       if (data.variants && data.variants.length > 0) {
-        const firstVariant = data.variants.find((v: any) => v.stock > 0) || data.variants[0];
+        const firstVariant = data.variants.find((v) => v.stock > 0) || data.variants[0];
         setSelectedSize(firstVariant.size || '');
         setSelectedColor(firstVariant.color || '');
         setSelectedVariant(firstVariant);
@@ -65,7 +67,7 @@ export default function ProductDetailPage() {
 
       // Fetch Reviews safely
       try {
-        const reviewsData = await api.get<any[]>(`/reviews/${data.id}`);
+        const reviewsData = await api.get<Review[]>(`/reviews/${data.id}`);
         setReviews(reviewsData || []);
       } catch (revErr) {
         console.warn('Could not fetch product reviews:', revErr);
@@ -89,32 +91,38 @@ export default function ProductDetailPage() {
           console.warn('Could not fetch user orders for verification:', ordErr);
         }
       }
-    } catch (err: any) {
-      setError(err.message || 'Product not found');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Product not found'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, isSignedIn]);
 
   useEffect(() => {
-    loadProductAndReviews();
-  }, [id, user]);
+    const timer = window.setTimeout(() => {
+      void loadProductAndReviews();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadProductAndReviews]);
 
   // Handle Size/Color changes to select corresponding variant
   useEffect(() => {
     if (!product || !product.variants || product.variants.length === 0) return;
 
-    const matched = product.variants.find((v: any) => {
+    const matched = product.variants.find((v) => {
       const sizeMatch = !v.size || v.size === selectedSize;
       const colorMatch = !v.color || v.color === selectedColor;
       return sizeMatch && colorMatch;
     });
 
+    // Option changes are user-driven; keeping this derived lookup in an effect
+    // avoids stale variant identifiers after a size/color selection.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedVariant(matched || null);
-    setQuantity(1); // Reset quantity bounds on variant change
   }, [selectedSize, selectedColor, product]);
 
   const handleAddToCart = async () => {
+    if (!product) return;
     if (!isSignedIn) {
       router.push('/sign-in');
       return;
@@ -132,9 +140,8 @@ export default function ProductDetailPage() {
       await addToCart(product.id, variantId, quantity);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
-    } catch (err: any) {
-      const error = err as Error;
-      addToast(error.message || 'Failed to add items to cart', 'error');
+    } catch (err: unknown) {
+      addToast(getErrorMessage(err, 'Failed to add items to cart'), 'error');
     } finally {
       setAdding(false);
     }
@@ -143,6 +150,7 @@ export default function ProductDetailPage() {
   // Submit Review Handler
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!product) return;
     setReviewError('');
     setReviewSuccess('');
 
@@ -158,10 +166,10 @@ export default function ProductDetailPage() {
       setRating(5);
       
       // Reload reviews list
-      const updatedReviews = await api.get<any[]>(`/reviews/${product.id}`);
+      const updatedReviews = await api.get<Review[]>(`/reviews/${product.id}`);
       setReviews(updatedReviews);
-    } catch (err: any) {
-      setReviewError(err.message || 'Failed to submit review');
+    } catch (err: unknown) {
+      setReviewError(getErrorMessage(err, 'Failed to submit review'));
     }
   };
 
@@ -207,25 +215,25 @@ export default function ProductDetailPage() {
 
   // Determine current display price
   const basePrice = selectedVariant && selectedVariant.price !== null
-    ? parseFloat(selectedVariant.price)
-    : parseFloat(product.basePrice.toString());
+    ? Number(selectedVariant.price)
+    : Number(product.basePrice);
   const discountVal = parseFloat(product.discountPrice?.toString() || '0');
   const hasDiscount = discountVal > 0;
   const finalPrice = hasDiscount ? basePrice - discountVal : basePrice;
 
   // Enforce stock bounds
-  const stockAvailable = selectedVariant ? selectedVariant.stock : product.stock;
+  const stockAvailable = selectedVariant?.stock ?? product.variants.reduce((sum, variant) => sum + variant.stock, 0);
 
   // Extract unique sizes and colors for variant selections
-  const sizes = Array.from(new Set(product.variants?.map((v: any) => v.size).filter(Boolean) || []));
-  const colors = Array.from(new Set(product.variants?.map((v: any) => v.color).filter(Boolean) || []));
+  const sizes = Array.from(new Set(product.variants.map((v) => v.size).filter((value): value is string => Boolean(value))));
+  const colors = Array.from(new Set(product.variants.map((v) => v.color).filter((value): value is string => Boolean(value))));
 
   // Generate Google Schema.org JSON-LD Structured Data
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.name,
-    image: product.images?.map((i: any) => i.url) || [activeImage],
+    image: product.images?.map((i) => i.url) || [activeImage],
     description: product.description,
     brand: {
       '@type': 'Brand',
@@ -285,7 +293,7 @@ export default function ProductDetailPage() {
               </div>
               {product.images && product.images.length > 1 && (
                 <div className="flex gap-4 overflow-x-auto pb-2">
-                  {product.images.map((img: any) => (
+                  {product.images.map((img: ProductImage) => (
                     <motion.button
                       key={img.id}
                       type="button"
@@ -351,7 +359,7 @@ export default function ProductDetailPage() {
                     <div>
                       <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3">Color</h3>
                       <div className="flex flex-wrap gap-3">
-                        {colors.map((color: any) => (
+                        {colors.map((color) => (
                           <motion.button
                             key={color}
                             type="button"
@@ -376,7 +384,7 @@ export default function ProductDetailPage() {
                     <div>
                       <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3">Size</h3>
                       <div className="flex flex-wrap gap-3">
-                        {sizes.map((size: any) => (
+                        {sizes.map((size) => (
                           <motion.button
                             key={size}
                             type="button"
@@ -531,7 +539,7 @@ export default function ProductDetailPage() {
                   reviews.map((rev) => (
                     <div key={rev.id} className="border-b border-border pb-6 last:border-b-0 space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-bold text-text-main">{rev.user.name}</span>
+                        <span className="font-bold text-text-main">{rev.user?.name || 'Verified customer'}</span>
                         <span className="text-xs text-text-muted">
                           {new Date(rev.createdAt).toLocaleDateString(undefined, {
                             year: 'numeric',

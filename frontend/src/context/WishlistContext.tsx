@@ -4,18 +4,12 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
 import { useToast } from './ToastContext';
+import type { Product } from '@/types';
 
 export interface WishlistItem {
   id: number;
   productId: number;
-  product?: {
-    id: number;
-    name: string;
-    basePrice: number;
-    discountPrice: number;
-    slug?: string;
-    images?: { id: number; url: string }[];
-  };
+  product?: Product;
   createdAt?: string;
 }
 

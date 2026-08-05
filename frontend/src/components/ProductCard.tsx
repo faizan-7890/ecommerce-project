@@ -41,7 +41,7 @@ export default function ProductCard({ product }: { product: Product }) {
   // Enforce total product stock from variants
   const totalStock = product.variants && product.variants.length > 0
     ? product.variants.reduce((acc, v) => acc + v.stock, 0)
-    : (product as any).stock || 0;
+    : 0;
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -64,9 +64,8 @@ export default function ProductCard({ product }: { product: Product }) {
       await addToCart(product.id, null, 1);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
-    } catch (err: any) {
-      const error = err as Error;
-      setErrorMsg(error.message || 'Failed to add item');
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to add item');
       setTimeout(() => setErrorMsg(''), 3000);
     } finally {
       setAdding(false);

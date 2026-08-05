@@ -8,7 +8,7 @@ import ProductCard from '@/components/ProductCard';
 import ProductSkeleton from '@/components/skeletons/ProductSkeleton';
 import { EmptyState, Stagger, StaggerItem } from '@/components/motion';
 import { api } from '@/lib/api';
-import { Product, Category } from '@/types';
+import { Product, Category, ProductListResponse } from '@/types';
 
 function ProductsContent() {
   const searchParams = useSearchParams();
@@ -34,7 +34,7 @@ function ProductsContent() {
   useEffect(() => {
     async function loadCategories() {
       try {
-        const cats = await api.get<any[]>('/categories');
+        const cats = await api.get<Category[]>('/categories');
         setCategories(cats);
       } catch (err) {
         console.error('Failed to load categories', err);
@@ -53,8 +53,8 @@ function ProductsContent() {
       if (minPrice) query += `&minPrice=${minPrice}`;
       if (maxPrice) query += `&maxPrice=${maxPrice}`;
 
-      const res = await api.get<{ products?: any[]; totalPages?: number }>(query);
-      setProducts(res.products || []);
+      const res = await api.get<ProductListResponse>(query);
+      setProducts(res.products);
       setTotalPages(res.totalPages || 1);
     } catch (err) {
       console.error('Failed to load products', err);

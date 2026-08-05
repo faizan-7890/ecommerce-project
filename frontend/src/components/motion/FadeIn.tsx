@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { fadeUp, reducedFade, transitions } from '@/lib/motion/variants';
+import { reducedFade, transitions } from '@/lib/motion/variants';
 import { cn } from '@/lib/cn';
 
 type FadeInProps = {

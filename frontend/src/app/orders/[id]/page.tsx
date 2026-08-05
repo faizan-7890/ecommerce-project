@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
@@ -9,47 +9,24 @@ import Footer from '@/components/Footer';
 import { api } from '@/lib/api';
 import { useUser } from '@clerk/nextjs';
 import { formatCurrency } from '@/lib/currency';
+import type { Order as ApiOrder } from '@/types';
+import { getErrorMessage } from '@/lib/errors';
 
-interface OrderItem {
-  id: number;
-  productId: number;
-  productVariantId?: number;
-  unitPrice: number;
-  quantity: number;
-  product: {
-    id: number;
-    name: string;
-    images: { id: number; url: string }[];
-  };
-  variant?: {
-    id: number;
-    size?: string;
-    color?: string;
-    sku?: string;
-  };
-}
-
-interface OrderDetail {
-  id: number;
-  orderNumber: string;
-  totalAmount: number;
-  status: string;
-  paymentStatus: string;
-  paymentMethod: string;
-  createdAt: string;
-  updatedAt: string;
-  shippingAddress?: {
+interface AddressSnapshot {
     fullName: string;
     phoneNumber: string;
     addressLine1: string;
-    addressLine2?: string;
+    addressLine2: string | null;
     city: string;
     state: string;
     postalCode: string;
     country: string;
-  };
-  items: OrderItem[];
 }
+
+type OrderDetail = Omit<ApiOrder, 'shippingAddressSnapshot' | 'billingAddressSnapshot'> & {
+  shippingAddressSnapshot: AddressSnapshot;
+  billingAddressSnapshot: AddressSnapshot;
+};
 
 const STEPS = [
   { key: 'PENDING', label: 'Order Placed', desc: 'Order received & pending review' },
@@ -60,6 +37,7 @@ const STEPS = [
 
 export default function OrderDetailPage() {
   const { id } = useParams();
+  const orderId = Array.isArray(id) ? id[0] : id;
   const router = useRouter();
   const { isSignedIn, isLoaded } = useUser();
 
@@ -67,28 +45,32 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const fetchOrderDetails = useCallback(async () => {
+    if (!orderId) return;
+    try {
+      setLoading(true);
+      const data = await api.get<OrderDetail>(`/orders/${orderId}`);
+      setOrder(data);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to load order details'));
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId]);
+
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
       router.push('/sign-in');
       return;
     }
 
-    if (isSignedIn && id) {
-      fetchOrderDetails();
+    if (isSignedIn && orderId) {
+      const timer = window.setTimeout(() => {
+        void fetchOrderDetails();
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
-  }, [id, isSignedIn, isLoaded, router]);
-
-  const fetchOrderDetails = async () => {
-    try {
-      setLoading(true);
-      const data = await api.get<OrderDetail>(`/orders/${id}`);
-      setOrder(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load order details');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchOrderDetails, isLoaded, isSignedIn, orderId, router]);
 
   const getStepIndex = (status: string) => {
     const s = status.toUpperCase();
@@ -102,8 +84,8 @@ export default function OrderDetailPage() {
     }
   };
 
-  const currentStep = order ? getStepIndex(order.status) : 0;
-  const isCancelled = order?.status.toUpperCase() === 'CANCELLED';
+  const currentStep = order ? getStepIndex(order.orderStatus) : 0;
+  const isCancelled = order?.orderStatus.toUpperCase() === 'CANCELLED';
 
   if (!isLoaded || loading) {
     return (
@@ -180,11 +162,11 @@ export default function OrderDetailPage() {
                   <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
                     isCancelled
                       ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                      : order.status.toUpperCase() === 'DELIVERED'
+                    : order.orderStatus.toUpperCase() === 'DELIVERED'
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                       : 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
                   }`}>
-                    {order.status}
+                    {order.orderStatus}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
@@ -194,7 +176,7 @@ export default function OrderDetailPage() {
 
               <div className="text-left sm:text-right">
                 <span className="text-xs font-medium text-slate-400 block">Total Amount</span>
-                <span className="text-2xl font-black text-white">{formatCurrency(parseFloat(order.totalAmount.toString()))}</span>
+                <span className="text-2xl font-black text-white">{formatCurrency(Number(order.total))}</span>
               </div>
             </div>
 
@@ -255,7 +237,7 @@ export default function OrderDetailPage() {
               <div className="rounded-2xl border border-slate-900 bg-slate-900/40 divide-y divide-slate-850/60 overflow-hidden">
                 {order.items.map((item) => {
                   const img = item.product?.images?.[0]?.url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=400&auto=format&fit=crop';
-                  const price = parseFloat(item.unitPrice.toString());
+                  const price = Number(item.productPriceSnapshot);
 
                   return (
                     <div key={item.id} className="flex items-center gap-4 p-4">
@@ -263,7 +245,7 @@ export default function OrderDetailPage() {
                         <Image src={img} alt={item.product?.name || 'Product'} fill className="object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-bold text-white line-clamp-1">{item.product?.name}</h4>
+                        <h4 className="text-sm font-bold text-white line-clamp-1">{item.product?.name || item.productNameSnapshot}</h4>
                         {item.variant && (
                           <p className="text-xs text-slate-400 mt-0.5">
                             {item.variant.size && `Size: ${item.variant.size}`}
@@ -287,14 +269,14 @@ export default function OrderDetailPage() {
               {/* Shipping Address */}
               <div className="rounded-2xl border border-slate-900 bg-slate-900/40 p-6">
                 <h3 className="text-sm font-bold text-white mb-3">Shipping Address</h3>
-                {order.shippingAddress ? (
+                {order.shippingAddressSnapshot ? (
                   <div className="text-xs text-slate-300 space-y-1">
-                    <p className="font-bold text-white">{order.shippingAddress.fullName}</p>
-                    <p>{order.shippingAddress.addressLine1}</p>
-                    {order.shippingAddress.addressLine2 && <p>{order.shippingAddress.addressLine2}</p>}
-                    <p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}</p>
-                    <p>{order.shippingAddress.country}</p>
-                    <p className="text-slate-400 pt-2 font-mono">{order.shippingAddress.phoneNumber}</p>
+                    <p className="font-bold text-white">{order.shippingAddressSnapshot.fullName}</p>
+                    <p>{order.shippingAddressSnapshot.addressLine1}</p>
+                    {order.shippingAddressSnapshot.addressLine2 && <p>{order.shippingAddressSnapshot.addressLine2}</p>}
+                    <p>{order.shippingAddressSnapshot.city}, {order.shippingAddressSnapshot.state} {order.shippingAddressSnapshot.postalCode}</p>
+                    <p>{order.shippingAddressSnapshot.country}</p>
+                    <p className="text-slate-400 pt-2 font-mono">{order.shippingAddressSnapshot.phoneNumber}</p>
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500">Standard Delivery</p>
@@ -307,7 +289,7 @@ export default function OrderDetailPage() {
                 <div className="text-xs space-y-2">
                   <div className="flex justify-between">
                     <span className="text-slate-400">Method</span>
-                    <span className="font-bold text-white uppercase">{order.paymentMethod || 'Razorpay / Card'}</span>
+                    <span className="font-bold text-white uppercase">{order.payments[0]?.method || 'Razorpay / Card'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Status</span>

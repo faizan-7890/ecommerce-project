@@ -74,7 +74,7 @@ export default function WishlistPage() {
               {wishlistItems.map((item) =>
                 item.product ? (
                   <StaggerItem key={item.id}>
-                    <ProductCard product={item.product as any} />
+                    <ProductCard product={item.product} />
                   </StaggerItem>
                 ) : null
               )}

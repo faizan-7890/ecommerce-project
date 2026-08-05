@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '@/context/CartContext';
 import { formatCurrency } from '@/lib/currency';
+import type { CartItem } from '@/types';
 
 interface MiniCartProps {
   isOpen: boolean;
@@ -53,7 +54,7 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
             <div className="flex-1 space-y-6 overflow-y-auto p-6">
               {cart && cart.items.length > 0 ? (
                 <AnimatePresence initial={false}>
-                  {cart.items.map((item: any) => {
+                  {cart.items.map((item: CartItem) => {
                     const image =
                       item.product.images?.[0]?.url ||
                       'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=600&auto=format&fit=crop';
@@ -179,7 +180,7 @@ export default function MiniCart({ isOpen, onClose }: MiniCartProps) {
                   <p>Subtotal</p>
                   <p>
                     {formatCurrency(
-                      cart.items.reduce((acc, item: any) => {
+                      cart.items.reduce((acc, item: CartItem) => {
                         const price = item.variant
                           ? parseFloat(
                               item.variant.price?.toString() ||

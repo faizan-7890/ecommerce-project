@@ -12,6 +12,8 @@ import { useUser } from '@clerk/nextjs';
 import Image from 'next/image';
 import { formatCurrency } from '@/lib/currency';
 import { EmptyState, FadeIn, MagneticButton } from '@/components/motion';
+import type { CartItem } from '@/types';
+import { getErrorMessage } from '@/lib/errors';
 
 export default function CartPage() {
   const { cart, updateQuantity, removeFromCart, loading } = useCart();
@@ -40,7 +42,7 @@ export default function CartPage() {
       try {
         await removeFromCart(itemId);
       } catch (err: unknown) {
-        addToast((err as Error).message || 'Failed to remove item', 'error');
+        addToast(getErrorMessage(err, 'Failed to remove item'), 'error');
       }
       return;
     }
@@ -51,11 +53,11 @@ export default function CartPage() {
     try {
       await updateQuantity(itemId, targetQty);
     } catch (err: unknown) {
-      addToast((err as Error).message || 'Failed to update quantity', 'error');
+      addToast(getErrorMessage(err, 'Failed to update quantity'), 'error');
     }
   };
 
-  const items: any[] = cart?.items ?? [];
+  const items: CartItem[] = cart?.items ?? [];
   const subtotal = items.reduce((acc, item) => {
     const base =
       item.variant?.price != null

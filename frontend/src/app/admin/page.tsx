@@ -1,15 +1,28 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
 import { useToast } from '@/context/ToastContext';
-import { Product, Category, Order, Coupon, ProductVariant } from '@/types';
+import {
+  AdminCategory,
+  AdminCoupon,
+  AdminOrderSummary,
+  AdminOrdersResponse,
+  AdminStats,
+  Product,
+  ProductVariant,
+} from '@/types';
 import AdminChart from '@/components/AdminChart';
 import { exportToCsv } from '@/lib/exportCsv';
+import { getErrorMessage } from '@/lib/errors';
+
+function createVariantSku(name: string): string {
+  return `${name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+}
 
 export default function AdminDashboard() {
   const { user, isLoaded, isSignedIn } = useUser();
@@ -20,7 +33,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
 
   // Stats / Date Range State
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<AdminStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [rangeType, setRangeType] = useState('last30days');
   const [startDate, setStartDate] = useState('');
@@ -52,17 +65,17 @@ export default function AdminDashboard() {
   const [variantMaterial, setVariantMaterial] = useState('');
 
   // Categories State
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryDesc, setNewCategoryDesc] = useState('');
 
   // Orders State
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<AdminOrderSummary[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
 
   // Coupons State
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [coupons, setCoupons] = useState<AdminCoupon[]>([]);
   const [loadingCoupons, setLoadingCoupons] = useState(true);
   const [newCoupon, setNewCoupon] = useState({
     code: '',
@@ -80,25 +93,7 @@ export default function AdminDashboard() {
     }
   }, [user, isLoaded, isSignedIn, router]);
 
-  // Load Data based on Active Tab
-  useEffect(() => {
-    if (!isSignedIn || user?.publicMetadata?.role !== 'ADMIN') return;
-
-    if (activeTab === 'overview') {
-      loadStats();
-    } else if (activeTab === 'products') {
-      loadProducts();
-      loadCategories();
-    } else if (activeTab === 'categories') {
-      loadCategories();
-    } else if (activeTab === 'orders') {
-      loadAllOrders();
-    } else if (activeTab === 'coupons') {
-      loadAllCoupons();
-    }
-  }, [activeTab, rangeType, user]);
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     setLoadingStats(true);
     try {
       let query = `?rangeType=${rangeType}`;
@@ -106,62 +101,83 @@ export default function AdminDashboard() {
         if (startDate) query += `&startDate=${startDate}`;
         if (endDate) query += `&endDate=${endDate}`;
       }
-      const data = await api.get<any>(`/admin/stats${query}`);
+      const data = await api.get<AdminStats>(`/admin/stats${query}`);
       setStats(data);
     } catch (err) {
       console.error('Error fetching admin stats', err);
     } finally {
       setLoadingStats(false);
     }
-  };
+  }, [endDate, rangeType, startDate]);
 
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     setLoadingProducts(true);
     try {
-      const data = await api.get<{ products?: any[] }>('/products?limit=100');
-      setProducts(data.products || []);
+      const data = await api.get<Product[]>('/admin/products');
+      setProducts(data);
     } catch (err) {
       console.error('Error fetching admin products', err);
     } finally {
       setLoadingProducts(false);
     }
-  };
+  }, []);
 
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     setLoadingCategories(true);
     try {
-      const data = await api.get<any[]>('/categories');
+      const data = await api.get<AdminCategory[]>('/admin/categories');
       setCategories(data);
     } catch (err) {
       console.error('Error fetching admin categories', err);
     } finally {
       setLoadingCategories(false);
     }
-  };
+  }, []);
 
-  const loadAllOrders = async () => {
+  const loadAllOrders = useCallback(async () => {
     setLoadingOrders(true);
     try {
-      const data = await api.get<any[]>('/admin/orders');
-      setOrders(data);
+      const data = await api.get<AdminOrdersResponse>('/admin/orders');
+      setOrders(data.orders);
     } catch (err) {
       console.error('Error fetching admin orders', err);
     } finally {
       setLoadingOrders(false);
     }
-  };
+  }, []);
 
-  const loadAllCoupons = async () => {
+  const loadAllCoupons = useCallback(async () => {
     setLoadingCoupons(true);
     try {
-      const data = await api.get<any[]>('/coupons');
+      const data = await api.get<AdminCoupon[]>('/admin/coupons');
       setCoupons(data);
     } catch (err) {
       console.error('Error fetching coupons:', err);
     } finally {
       setLoadingCoupons(false);
     }
-  };
+  }, []);
+
+  // Load data only after Clerk has confirmed that the current user is an admin.
+  useEffect(() => {
+    if (!isSignedIn || user?.publicMetadata?.role !== 'ADMIN') return;
+
+    const timer = window.setTimeout(() => {
+      if (activeTab === 'overview') {
+        void loadStats();
+      } else if (activeTab === 'products') {
+        void loadProducts();
+        void loadCategories();
+      } else if (activeTab === 'categories') {
+        void loadCategories();
+      } else if (activeTab === 'orders') {
+        void loadAllOrders();
+      } else if (activeTab === 'coupons') {
+        void loadAllCoupons();
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, isSignedIn, loadAllCoupons, loadAllOrders, loadCategories, loadProducts, loadStats, user]);
 
   // Actions: Products Add
   const handleCreateProduct = async (e: React.FormEvent) => {
@@ -200,8 +216,8 @@ export default function AdminDashboard() {
         imageUrl: '',
       });
       loadProducts();
-    } catch (err: any) {
-      addToast(err.message || 'Failed to create product', 'error');
+    } catch (err: unknown) {
+      addToast(getErrorMessage(err, 'Failed to create product'), 'error');
     }
   };
 
@@ -211,15 +227,15 @@ export default function AdminDashboard() {
       await api.delete(`/products/${productId}`);
       addToast('Product status toggled to inactive/disabled', 'info');
       loadProducts();
-    } catch (err: any) {
-      addToast(err.message || 'Failed to disable product', 'error');
+    } catch (err: unknown) {
+      addToast(getErrorMessage(err, 'Failed to disable product'), 'error');
     }
   };
 
   // Actions: Variants Admin Modal
   const handleOpenVariantsModal = (prod: Product) => {
     setVariantModalProduct(prod);
-    setVariantSku(`${prod.name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`);
+    setVariantSku(createVariantSku(prod.name));
     setVariantPrice('');
     setVariantStock('10');
     setVariantSize('');
@@ -243,18 +259,18 @@ export default function AdminDashboard() {
 
       addToast('Variant successfully added!', 'success');
       // Reload product details inside modal
-      const updatedProd = await api.get<any>(`/products/${variantModalProduct.id}`);
+      const updatedProd = await api.get<Product>(`/products/${variantModalProduct.id}`);
       setVariantModalProduct(updatedProd);
 
       // Reset variant form fields
-      setVariantSku(`${updatedProd.name.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`);
+      setVariantSku(createVariantSku(updatedProd.name));
       setVariantPrice('');
       setVariantStock('10');
       setVariantSize('');
       setVariantColor('');
       setVariantMaterial('');
-    } catch (err: any) {
-      addToast(err.message || 'Failed to add variant', 'error');
+    } catch (err: unknown) {
+      addToast(getErrorMessage(err, 'Failed to add variant'), 'error');
     }
   };
 
@@ -263,10 +279,10 @@ export default function AdminDashboard() {
     try {
       await api.delete(`/products/${variantModalProduct.id}/variants/${variantId}`);
       addToast('Variant deleted', 'info');
-      const updatedProd = await api.get<any>(`/products/${variantModalProduct.id}`);
+      const updatedProd = await api.get<Product>(`/products/${variantModalProduct.id}`);
       setVariantModalProduct(updatedProd);
-    } catch (err: any) {
-      addToast(err.message || 'Failed to delete variant', 'error');
+    } catch (err: unknown) {
+      addToast(getErrorMessage(err, 'Failed to delete variant'), 'error');
     }
   };
 
@@ -288,8 +304,8 @@ export default function AdminDashboard() {
       setNewCategoryName('');
       setNewCategoryDesc('');
       loadCategories();
-    } catch (err: any) {
-      addToast(err.message || 'Failed to create category', 'error');
+    } catch (err: unknown) {
+      addToast(getErrorMessage(err, 'Failed to create category'), 'error');
     }
   };
 
@@ -299,8 +315,8 @@ export default function AdminDashboard() {
       await api.delete(`/categories/${categoryId}`);
       addToast('Category deleted successfully', 'success');
       loadCategories();
-    } catch (err: any) {
-      addToast(err.message || 'Failed to delete category', 'error');
+    } catch (err: unknown) {
+      addToast(getErrorMessage(err, 'Failed to delete category'), 'error');
     }
   };
 
@@ -310,8 +326,8 @@ export default function AdminDashboard() {
       await api.put(`/admin/orders/${orderId}/status`, { [field]: value });
       addToast(`Order ${field} updated to '${value}'`, 'info');
       loadAllOrders();
-    } catch (err: any) {
-      addToast(err.message || 'Failed to update order status', 'error');
+    } catch (err: unknown) {
+      addToast(getErrorMessage(err, 'Failed to update order status'), 'error');
     }
   };
 
@@ -340,8 +356,8 @@ export default function AdminDashboard() {
         expirationDate: '',
       });
       loadAllCoupons();
-    } catch (err: any) {
-      addToast(err.message || 'Failed to create coupon', 'error');
+    } catch (err: unknown) {
+      addToast(getErrorMessage(err, 'Failed to create coupon'), 'error');
     }
   };
 
@@ -349,10 +365,10 @@ export default function AdminDashboard() {
     const headers = ['ID', 'Name', 'Brand', 'Category', 'Base Price', 'Stock Level'];
     const rows = products.map((p) => [
       p.id,
-      p.name || (p as any).title || '',
+      p.name,
       p.brand || '',
       p.category?.name || '',
-      p.basePrice || (p as any).price || 0,
+      p.basePrice,
       p.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) ?? 0,
     ]);
     exportToCsv(`veloce_products_${Date.now()}`, headers, rows);
@@ -384,7 +400,7 @@ export default function AdminDashboard() {
       c.discountValue,
       c.minOrderAmount,
       c.usageLimit ?? 'Unlimited',
-      (c as any).timesUsed || (c as any)._count?.usages || 0,
+      c.usageCount,
       c.isActive ? 'ACTIVE' : 'DISABLED',
     ]);
     exportToCsv(`veloce_coupons_${Date.now()}`, headers, rows);
@@ -397,8 +413,8 @@ export default function AdminDashboard() {
       await api.delete(`/coupons/${couponId}`);
       addToast('Coupon deleted successfully', 'success');
       loadAllCoupons();
-    } catch (err: any) {
-      addToast(err.message || 'Failed to delete coupon', 'error');
+    } catch (err: unknown) {
+      addToast(getErrorMessage(err, 'Failed to delete coupon'), 'error');
     }
   };
 
@@ -497,32 +513,32 @@ export default function AdminDashboard() {
                     <div className="rounded-2xl border border-slate-900 bg-slate-900/40 p-6">
                       <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Revenue</span>
                       <span className="block mt-2 text-2xl font-black text-white">
-                        ${stats.salesSummary.totalRevenue.toFixed(2)}
+                        ${stats.totalRevenue.toFixed(2)}
                       </span>
                     </div>
                     <div className="rounded-2xl border border-slate-900 bg-slate-900/40 p-6">
                       <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Orders count</span>
                       <span className="block mt-2 text-2xl font-black text-white">
-                        {stats.salesSummary.totalOrders}
+                        {stats.totalOrders}
                       </span>
                     </div>
                     <div className="rounded-2xl border border-slate-900 bg-slate-900/40 p-6">
                       <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Products Catalog</span>
                       <span className="block mt-2 text-2xl font-black text-white">
-                        {stats.salesSummary.totalProducts}
+                        {stats.totalProducts}
                       </span>
                     </div>
                     <div className="rounded-2xl border border-slate-900 bg-slate-900/40 p-6">
                       <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">New Customers</span>
                       <span className="block mt-2 text-2xl font-black text-white">
-                        {stats.salesSummary.totalCustomers}
+                        {stats.totalUsers}
                       </span>
                     </div>
                   </div>
 
                   {/* Revenue Chart */}
                   <div className="w-full">
-                    <AdminChart data={stats.timeSeriesData || []} />
+                    <AdminChart data={stats.revenueChart || []} />
                   </div>
 
                   {/* More metrics */}
@@ -546,7 +562,7 @@ export default function AdminDashboard() {
                           </thead>
                           <tbody>
                             {stats.lowStockProducts.length > 0 ? (
-                              stats.lowStockProducts.map((v: any, index: number) => (
+                              stats.lowStockProducts.map((v, index) => (
                                 <tr key={index} className="border-b border-slate-900/50">
                                   <td className="py-2.5 font-bold text-slate-200">{v.name}</td>
                                   <td className="py-2.5 text-slate-400 font-mono">{v.sku}</td>
@@ -571,7 +587,7 @@ export default function AdminDashboard() {
                       <h3 className="text-base font-bold text-white mb-4">Best Sellers</h3>
                       <div className="space-y-4 text-xs">
                         {stats.bestSellers.length > 0 ? (
-                          stats.bestSellers.map((item: any) => (
+                          stats.bestSellers.map((item) => (
                             <div key={item.id} className="flex justify-between items-center border-b border-slate-900 pb-3 last:border-0 last:pb-0">
                               <div>
                                 <span className="font-bold text-white block truncate w-40">{item.name}</span>
@@ -591,7 +607,7 @@ export default function AdminDashboard() {
                   <div className="rounded-2xl border border-slate-900 bg-slate-900/40 p-6">
                     <h3 className="text-base font-bold text-white mb-4">System Actions Log (Audit Trail)</h3>
                     <div className="space-y-3.5 max-h-60 overflow-y-auto pr-2">
-                      {stats.auditLogs.map((log: any) => (
+                      {stats.auditLogs.map((log) => (
                         <div key={log.id} className="flex flex-col sm:flex-row justify-between sm:items-center text-xs border-b border-slate-900/40 pb-3 last:border-0 last:pb-0 gap-1">
                           <div>
                             <span className="rounded bg-slate-800 px-2 py-0.5 font-bold uppercase tracking-wider text-[10px] text-slate-400 mr-2">
@@ -842,7 +858,7 @@ export default function AdminDashboard() {
                           <tr key={cat.id} className="border-b border-slate-900/40">
                             <td className="py-3 font-semibold text-white">#{cat.id}</td>
                             <td className="py-3 text-slate-350">{cat.name}</td>
-                            <td className="py-3 text-slate-400">{(cat as any)._count?.products || 0}</td>
+                            <td className="py-3 text-slate-400">{cat.productCount}</td>
                             <td className="py-3 text-right">
                               <button
                                 onClick={() => handleDeleteCategory(cat.id)}
@@ -927,11 +943,11 @@ export default function AdminDashboard() {
                         <tr key={ord.id} className="border-b border-slate-900/40">
                           <td className="py-4 font-mono font-bold text-white">{ord.orderNumber}</td>
                           <td className="py-4">
-                            <span className="block text-slate-200 font-semibold">{(ord as any).user?.name}</span>
-                            <span className="text-xs text-slate-550">{(ord as any).user?.email}</span>
+                            <span className="block text-slate-200 font-semibold">{ord.user?.name || 'Unknown'}</span>
+                            <span className="text-xs text-slate-550">{ord.user?.email || '—'}</span>
                           </td>
                           <td className="py-4 text-slate-400">
-                            {ord.items.map((item: any) => (
+                            {ord.items.map((item) => (
                               <span key={item.id} className="block text-xs">
                                 • {item.productNameSnapshot} <span className="text-slate-600">x{item.quantity}</span>
                               </span>
@@ -1042,7 +1058,7 @@ export default function AdminDashboard() {
                             </td>
                             <td className="py-3 text-slate-450">${c.minOrderAmount}</td>
                             <td className="py-3 text-center text-slate-400">
-                              {(c as any)._count?.usages || 0} {c.usageLimit ? `/ ${c.usageLimit}` : ''}
+                              {c.usageCount} {c.usageLimit ? `/ ${c.usageLimit}` : ''}
                             </td>
                             <td className="py-3 text-right">
                               <button

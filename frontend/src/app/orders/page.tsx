@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useCallback, useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
@@ -12,6 +12,8 @@ import Image from 'next/image';
 import { formatCurrency } from '@/lib/currency';
 import { ConfettiBurst, FadeIn, EmptyState, Stagger, StaggerItem } from '@/components/motion';
 import { flags } from '@/lib/featureFlags';
+import type { Order } from '@/types';
+import { getErrorMessage } from '@/lib/errors';
 
 function OrdersContent() {
   const { isLoaded, isSignedIn } = useUser();
@@ -19,28 +21,31 @@ function OrdersContent() {
   const searchParams = useSearchParams();
   const { addToast } = useToast();
 
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [celebrate, setCelebrate] = useState(false);
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     try {
-      const data = await api.get<any[]>('/orders');
+      const data = await api.get<Order[]>('/orders');
       setOrders(data);
     } catch (err) {
       console.error('Failed to load orders', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
       router.push('/');
     } else if (isSignedIn) {
-      loadOrders();
+      const timer = window.setTimeout(() => {
+        void loadOrders();
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
-  }, [isSignedIn, isLoaded, router]);
+  }, [isLoaded, isSignedIn, loadOrders, router]);
 
   // Order-success confetti: checkout navigates to /orders?celebrated=1
   useEffect(() => {
@@ -71,10 +76,9 @@ function OrdersContent() {
     try {
       await api.put(`/orders/${orderId}/cancel`);
       addToast('Order cancelled successfully!', 'success');
-      loadOrders();
-    } catch (err: any) {
-      const error = err as Error;
-      addToast(error.message || 'Failed to cancel order', 'error');
+      void loadOrders();
+    } catch (err: unknown) {
+      addToast(getErrorMessage(err, 'Failed to cancel order'), 'error');
     }
   };
 
@@ -162,7 +166,7 @@ function OrdersContent() {
                         <div className="space-y-1 text-right">
                           <span className="text-xs text-text-muted">Total Charged</span>
                           <span className="block font-extrabold text-text-main">
-                            {formatCurrency(parseFloat(order.total))}
+                            {formatCurrency(Number(order.total))}
                           </span>
                         </div>
                         <div className="flex items-center gap-3">
@@ -181,7 +185,7 @@ function OrdersContent() {
                       </div>
 
                       <div className="space-y-4">
-                        {order.items.map((item: any) => (
+                        {order.items.map((item) => (
                           <div key={item.id} className="flex items-center gap-4">
                             <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-bg-base">
                               <Image
@@ -201,7 +205,7 @@ function OrdersContent() {
                               <span className="text-text-muted">Qty: {item.quantity}</span>
                             </div>
                             <span className="text-sm font-semibold text-text-muted">
-                              {formatCurrency(parseFloat(item.productPriceSnapshot))}
+                              {formatCurrency(Number(item.productPriceSnapshot))}
                             </span>
                           </div>
                         ))}

@@ -4,31 +4,22 @@ const isProtectedRoute = createRouteMatcher([
   '/checkout(.*)',
   '/profile(.*)',
   '/orders(.*)',
-  '/wishlist(.*)'
+  '/wishlist(.*)',
 ]);
 
-const isAdminRoute = createRouteMatcher([
-  '/admin(.*)'
-]);
+const isAdminRoute = createRouteMatcher(['/admin(.*)']);
 
 export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req) || isAdminRoute(req)) {
-    if (typeof (auth as any).protect === 'function') {
-      await (auth as any).protect();
-    } else {
-      const authObj = await auth();
-      if (authObj && typeof (authObj as any).protect === 'function') {
-        await (authObj as any).protect();
-      }
-    }
+    await auth.protect();
   }
 });
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
+    // Skip Next.js internals and static files, unless found in search params.
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
+    // Always run for API routes.
     '/(api|trpc)(.*)',
   ],
 };

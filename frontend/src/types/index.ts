@@ -15,6 +15,7 @@ export interface User {
 export interface ProductImage {
   id: number;
   url: string;
+  productId?: number;
 }
 
 export interface Category {
@@ -45,9 +46,13 @@ export interface Product {
   categoryId: number;
   category?: Category;
   lowStockThreshold: number;
+  weight?: number | null;
+  dimensions?: string | null;
   status: string;
   images: ProductImage[];
   variants: ProductVariant[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Address {
@@ -112,6 +117,7 @@ export interface Order {
   items: OrderItem[];
   payments: Payment[];
   refunds: Refund[];
+  trackingNumber?: string | null;
   createdAt: string;
 }
 
@@ -187,16 +193,24 @@ export interface AdminAuditLog {
 }
 
 export interface AdminStats {
-  salesSummary: {
-    totalRevenue: number;
-    totalOrders: number;
-    totalProducts: number;
-    totalCustomers: number;
-  };
-  timeSeriesData: { date: string; revenue: number; orders?: number }[];
+  totalRevenue: number;
+  totalOrders: number;
+  pendingOrders: number;
+  totalProducts: number;
+  totalUsers: number;
+  revenueChart: { date: string; revenue: number; orders?: number }[];
   lowStockProducts: AdminLowStockProduct[];
   bestSellers: AdminBestSeller[];
   auditLogs: AdminAuditLog[];
+  recentOrders: {
+    id: number;
+    orderNumber: string;
+    total: number;
+    orderStatus: string;
+    paymentStatus: string;
+    createdAt: string;
+    userName: string;
+  }[];
 }
 
 export interface AdminCategory extends Category {

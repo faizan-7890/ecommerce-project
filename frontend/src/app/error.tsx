@@ -25,7 +25,7 @@ export default function GlobalError({
 
         <h1 className="text-2xl font-extrabold text-white">Application Error</h1>
         <p className="text-sm text-slate-400">
-          We encountered an unexpected error. Don't worry, your data and cart are safe.
+          We encountered an unexpected error. Don&apos;t worry, your data and cart are safe.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">

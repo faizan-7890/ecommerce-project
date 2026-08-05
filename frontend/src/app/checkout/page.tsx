@@ -1,30 +1,64 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useCart } from '@/context/CartContext';
 import { useUser } from '@clerk/nextjs';
 import { api } from '@/lib/api';
+import type { Address, Order } from '@/types';
+import { getErrorMessage } from '@/lib/errors';
 
 interface AppliedCoupon {
   code: string;
   discountAmount: number;
 }
 
-interface Address {
-  id: number;
-  fullName: string;
-  phoneNumber: string;
-  addressLine1: string;
-  addressLine2: string | null;
-  city: string;
-  state: string;
-  postalCode: string;
-  country: string;
-  addressType: string;
-  isDefault: boolean;
+interface CouponValidationResponse {
+  code: string;
+  discountAmount?: number;
+  discount_amount?: number;
+}
+
+interface RazorpayOrderResponse {
+  keyId: string;
+  amount: number;
+  currency: string;
+  razorpayOrderId: string;
+}
+
+interface RazorpayPaymentResponse {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+interface RazorpayOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  handler: (response: RazorpayPaymentResponse) => void | Promise<void>;
+  prefill: { name: string; email: string };
+  theme: { color: string };
+  modal: { ondismiss: () => void };
+}
+
+interface RazorpayInstance {
+  open: () => void;
+}
+
+declare global {
+  interface Window {
+    Razorpay: new (options: RazorpayOptions) => RazorpayInstance;
+  }
+}
+
+function createIdempotencyKey(): string {
+  return `idemp-${Date.now()}-${Math.random().toString(36).slice(2, 9).toUpperCase()}`;
 }
 
 export default function CheckoutPage() {
@@ -53,17 +87,14 @@ export default function CheckoutPage() {
   const [couponError, setCouponError] = useState('');
 
   // Payment State
-  const [paymentMethod, setPaymentMethod] = useState('cod'); // "cod" or "card"
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvc, setCardCvc] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'card'>('cod');
 
   // Checkout Actions State
   const [loading, setLoading] = useState(false);
   const [addressLoading, setAddressLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadAddresses = async () => {
+  const loadAddresses = useCallback(async () => {
     try {
       const data = await api.get<Address[]>('/users/addresses');
       setAddresses(data);
@@ -73,12 +104,12 @@ export default function CheckoutPage() {
       } else {
         setShowAddressForm(true);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to load address book:', err);
     } finally {
       setAddressLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -90,9 +121,12 @@ export default function CheckoutPage() {
       return;
     }
     if (isSignedIn) {
-      loadAddresses();
+      const timer = window.setTimeout(() => {
+        void loadAddresses();
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
-  }, [isSignedIn, isLoaded, cart, router]);
+  }, [cart, isLoaded, isSignedIn, loadAddresses, router]);
 
   if (!isLoaded || !isSignedIn || !cart || cart.items.length === 0) {
     return (
@@ -115,7 +149,7 @@ export default function CheckoutPage() {
     if (!couponCode) return;
 
     try {
-      const data = await api.post<any>('/coupons/validate', {
+      const data = await api.post<CouponValidationResponse>('/coupons/validate', {
         code: couponCode,
         subtotal: cartSubtotal,
       });
@@ -123,8 +157,8 @@ export default function CheckoutPage() {
         code: String(data.code),
         discountAmount: Number(data.discount_amount ?? data.discountAmount ?? 0),
       });
-    } catch (err: any) {
-      setCouponError(err.message || 'Invalid promo code');
+    } catch (err: unknown) {
+      setCouponError(getErrorMessage(err, 'Invalid promo code'));
     }
   };
 
@@ -165,14 +199,14 @@ export default function CheckoutPage() {
       setState('');
       setPostalCode('');
       setCountry('');
-    } catch (err: any) {
-      setError(err.message || 'Failed to register address card');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to register address card'));
     } finally {
       setLoading(false);
     }
   };
 
-  const loadRazorpayScript = () => {
+  const loadRazorpayScript = (): Promise<boolean> => {
     return new Promise((resolve) => {
       const script = document.createElement('script');
       script.src = 'https://checkout.razorpay.com/v1/checkout.js';
@@ -194,10 +228,10 @@ export default function CheckoutPage() {
     setLoading(true);
     try {
       // Generate unique idempotency key
-      const idempotencyKey = `idemp-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+      const idempotencyKey = createIdempotencyKey();
 
       // 1. Place order
-      const order = await api.post<any>('/orders', {
+      const order = await api.post<Pick<Order, 'id' | 'orderNumber'>>('/orders', {
         shippingAddressId: selectedAddressId,
         billingAddressId: selectedAddressId,
         couponCode: appliedCoupon ? appliedCoupon.code : undefined,
@@ -208,7 +242,7 @@ export default function CheckoutPage() {
 
       // 2. Open Razorpay Standard Checkout if Credit Card is selected
       if (paymentMethod === 'card') {
-        const rzpOrderData = await api.post<any>('/payments/create-order', {
+        const rzpOrderData = await api.post<RazorpayOrderResponse>('/payments/create-order', {
           orderId: order.id,
         });
 
@@ -226,18 +260,18 @@ export default function CheckoutPage() {
           name: 'Veloce Store',
           description: `Payment for Order #${order.orderNumber}`,
           order_id: rzpOrderData.razorpayOrderId,
-          handler: async function (response: any) {
+          handler: async function (response: RazorpayPaymentResponse) {
             setLoading(true);
             try {
-              await api.post<any>('/payments/verify', {
+              await api.post('/payments/verify', {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
               });
               await refreshCart();
               router.push('/orders?celebrated=1');
-            } catch (err: any) {
-              setError(err.message || 'Payment signature verification failed.');
+            } catch (err: unknown) {
+              setError(getErrorMessage(err, 'Payment signature verification failed.'));
             } finally {
               setLoading(false);
             }
@@ -257,15 +291,15 @@ export default function CheckoutPage() {
           }
         };
 
-        const rzp = new (window as any).Razorpay(options);
+        const rzp = new window.Razorpay(options);
         rzp.open();
         return; // stop execution here and wait for Razorpay modal callback handler
       }
 
       await refreshCart();
       router.push('/orders?celebrated=1');
-    } catch (err: any) {
-      setError(err.message || 'Checkout failed. Please inspect your item stock settings.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Checkout failed. Please inspect your item stock settings.'));
     } finally {
       setLoading(false);
     }
