@@ -4,17 +4,35 @@ Categories router — CRUD operations.
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from database import get_db
 from dependencies import require_admin
-from models import Category, User
-from schemas import CategoryCreate, CategoryOut, MessageResponse
+from models import Category, Product, User
+from schemas import CategoryCreate, CategoryOut, CategoryWithCountOut, CategoryCount, MessageResponse
 
 router = APIRouter(prefix="/api/categories", tags=["Categories"])
 
 
-@router.get("", response_model=List[CategoryOut])
+@router.get("", response_model=List[CategoryWithCountOut])
 def list_categories(db: Session = Depends(get_db)):
-    return db.query(Category).all()
+    """List all categories with their active product counts."""
+    # Query categories with a LEFT JOIN count of active products
+    results = (
+        db.query(Category, func.count(Product.id).label("product_count"))
+        .outerjoin(Product, (Product.category_id == Category.id) & (Product.status == "active"))
+        .group_by(Category.id)
+        .all()
+    )
+
+    categories_out = []
+    for cat, count in results:
+        categories_out.append(CategoryWithCountOut(
+            id=cat.id,
+            name=cat.name,
+            description=cat.description,
+            _count=CategoryCount(products=count),
+        ))
+    return categories_out
 
 
 @router.get("/{category_id}", response_model=CategoryOut)

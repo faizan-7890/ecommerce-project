@@ -96,6 +96,23 @@ class CategoryOut(BaseModel):
     description: Optional[str] = None
 
 
+class CategoryCount(BaseModel):
+    """Mirrors Prisma's _count structure expected by the frontend."""
+    products: int = 0
+
+
+class CategoryWithCountOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    count: CategoryCount = Field(default=CategoryCount(), serialization_alias="_count")
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
 # ─── Product Image ───────────────────────────────────────────────────────────
 class ProductImageOut(BaseModel):
     id: int
