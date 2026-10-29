@@ -10,3 +10,5 @@ build/
 # sqlite database
 *.db
 
+.venv/
+.pytest_cache/

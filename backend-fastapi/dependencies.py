@@ -1,6 +1,8 @@
 """
 Authentication dependency — verifies Clerk JWTs and syncs users to local MySQL DB.
 """
+import base64
+import binascii
 import os
 import httpx
 import bcrypt
@@ -20,6 +22,23 @@ _jwks_cache_time: float = 0.0
 _JWKS_TTL_SECONDS: int = 3600  # 1 hour
 
 
+def _jwks_url_from_publishable_key(pk: str) -> str | None:
+    """
+    Clerk publishable keys are pk_test_/pk_live_ + base64("<frontend-api-host>$"),
+    e.g. pk_test_Y2xldmVyLWNhdC0xMi5jbGVyay5hY2NvdW50cy5kZXYk -> clever-cat-12.clerk.accounts.dev
+    """
+    prefix, _, encoded = pk.partition("_test_") if "_test_" in pk else pk.partition("_live_")
+    if prefix != "pk" or not encoded:
+        return None
+    try:
+        host = base64.b64decode(encoded + "=" * (-len(encoded) % 4)).decode("utf-8").rstrip("$")
+    except (binascii.Error, UnicodeDecodeError):
+        return None
+    if not host:
+        return None
+    return f"https://{host}/.well-known/jwks.json"
+
+
 async def _get_clerk_jwks() -> dict:
     """Fetch and cache Clerk JWKS public keys with a 1-hour TTL."""
     import time
@@ -27,13 +46,11 @@ async def _get_clerk_jwks() -> dict:
     if _jwks_cache and (time.time() - _jwks_cache_time) < _JWKS_TTL_SECONDS:
         return _jwks_cache
 
-    jwks_url = os.getenv("CLERK_JWKS_URL")
+    jwks_url = os.getenv("CLERK_JWKS_URL") or _jwks_url_from_publishable_key(
+        os.getenv("CLERK_PUBLISHABLE_KEY", "")
+    )
     if not jwks_url:
-        # Derive from Clerk publishable key
-        pk = os.getenv("CLERK_PUBLISHABLE_KEY", "")
-        # Extract instance from pk_test_XXXX or pk_live_XXXX
-        instance = pk.split("_")[-1] if pk else ""
-        jwks_url = f"https://{instance}.clerk.accounts.dev/.well-known/jwks.json"
+        raise HTTPException(status_code=500, detail="Clerk is not configured: set CLERK_JWKS_URL or CLERK_PUBLISHABLE_KEY")
 
     async with httpx.AsyncClient() as client:
         resp = await client.get(jwks_url)

@@ -12,6 +12,7 @@ import time
 
 load_dotenv()
 
+from config import is_production
 from database import engine, Base, get_db
 from routers import products, categories, cart, orders, users, wishlist, reviews, coupons, payments, admin
 
@@ -70,7 +71,7 @@ async def add_security_and_telemetry_headers(request: Request, call_next):
 async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
-        content={"message": str(exc) if os.getenv("APP_ENV") != "production" else "Internal Server Error"},
+        content={"message": "Internal Server Error" if is_production() else str(exc)},
     )
 
 

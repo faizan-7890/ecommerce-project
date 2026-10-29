@@ -8,6 +8,8 @@ import os
 
 load_dotenv()
 
+from config import is_production
+
 DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root:root@localhost:3306/ecommerce")
 
 def _init_engine():
@@ -28,6 +30,9 @@ def _init_engine():
             pass
         return my_engine
     except Exception as e:
+        # SQLite ignores FOR UPDATE and would silently split data, so never fall back in production
+        if is_production():
+            raise
         print(f"[WARN] MySQL connection failed ({e}). Falling back to SQLite for local development.")
         return create_engine("sqlite:///./ecommerce.db", connect_args={"check_same_thread": False})
 
