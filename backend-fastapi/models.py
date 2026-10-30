@@ -11,6 +11,11 @@ from sqlalchemy.orm import relationship
 from database import Base
 
 
+def _utcnow() -> datetime:
+    """Column default; passed as a callable so each row gets its own timestamp, not the import time."""
+    return datetime.now(timezone.utc)
+
+
 # ─── Role ────────────────────────────────────────────────────────────────────
 class Role(Base):
     __tablename__ = "roles"
@@ -32,8 +37,8 @@ class User(Base):
     password = Column(String(255), nullable=False)
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)
     email_verified = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     role = relationship("Role", back_populates="users")
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
@@ -55,7 +60,7 @@ class PasswordResetToken(Base):
     token_hash = Column(String(255), unique=True, nullable=False)
     expires_at = Column(DateTime, nullable=False)
     used_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
 
     user = relationship("User", back_populates="password_reset_tokens")
 
@@ -69,7 +74,7 @@ class RefreshToken(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     expires_at = Column(DateTime, nullable=False)
     revoked = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
 
     user = relationship("User", back_populates="refresh_tokens")
 
@@ -123,8 +128,8 @@ class Product(Base):
     weight = Column(Numeric(8, 2), nullable=True)
     dimensions = Column(String(255), nullable=True)
     status = Column(String(20), default="active")  # "active" or "disabled"
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     category = relationship("Category", back_populates="products")
     images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
@@ -148,8 +153,8 @@ class ProductVariant(Base):
     size = Column(String(50), nullable=True)
     color = Column(String(50), nullable=True)
     material = Column(String(100), nullable=True)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     product = relationship("Product", back_populates="variants")
     cart_items = relationship("CartItem", back_populates="variant")
@@ -174,8 +179,8 @@ class Cart(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     user = relationship("User", back_populates="cart")
     items = relationship("CartItem", back_populates="cart", cascade="all, delete-orphan")
@@ -223,8 +228,8 @@ class Order(Base):
     shipping_address_id = Column(Integer, ForeignKey("addresses.id", ondelete="SET NULL"), nullable=True)
     billing_address_id = Column(Integer, ForeignKey("addresses.id", ondelete="SET NULL"), nullable=True)
     tracking_number = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     user = relationship("User", back_populates="orders")
     shipping_address = relationship("Address", back_populates="shipping_orders", foreign_keys=[shipping_address_id])
@@ -265,7 +270,7 @@ class Payment(Base):
     razorpay_order_id = Column(String(255), unique=True, nullable=True)
     razorpay_payment_id = Column(String(255), unique=True, nullable=True)
     transaction_id = Column(String(255), unique=True, nullable=True)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
 
     order = relationship("Order", back_populates="payments")
     refunds = relationship("Refund", back_populates="payment", cascade="all, delete-orphan")
@@ -282,7 +287,7 @@ class Refund(Base):
     reason = Column(Text, nullable=False)
     status = Column(String(30), default="pending")
     razorpay_refund_id = Column(String(255), unique=True, nullable=True)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
 
     payment = relationship("Payment", back_populates="refunds")
     order = relationship("Order", back_populates="refunds")
@@ -295,7 +300,7 @@ class ProcessedWebhookEvent(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     event_key = Column(String(255), unique=True, nullable=False)
     event_type = Column(String(100), nullable=False)
-    processed_at = Column(DateTime, default=datetime.now(timezone.utc))
+    processed_at = Column(DateTime, default=_utcnow)
 
 
 # ─── InventoryLog ────────────────────────────────────────────────────────────
@@ -311,7 +316,7 @@ class InventoryLog(Base):
     reason = Column(String(100), nullable=False)
     order_id = Column(Integer, ForeignKey("orders.id", ondelete="SET NULL"), nullable=True)
     updated_by = Column(String(100), nullable=False)
-    timestamp = Column(DateTime, default=datetime.now(timezone.utc))
+    timestamp = Column(DateTime, default=_utcnow)
 
     product = relationship("Product", back_populates="inventory_logs")
     variant = relationship("ProductVariant", back_populates="inventory_logs")
@@ -329,7 +334,7 @@ class Review(Base):
     rating = Column(Integer, nullable=False)  # 1 to 5
     comment = Column(Text, nullable=True)
     is_hidden = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
 
     user = relationship("User", back_populates="reviews")
     product = relationship("Product", back_populates="reviews")
@@ -346,7 +351,7 @@ class WishlistItem(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
 
     user = relationship("User", back_populates="wishlist_items")
     product = relationship("Product", back_populates="wishlist_items")
@@ -364,7 +369,7 @@ class Coupon(Base):
     usage_limit = Column(Integer, nullable=True)
     expiration_date = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
 
     usages = relationship("CouponUsage", back_populates="coupon", cascade="all, delete-orphan")
 
@@ -377,7 +382,7 @@ class CouponUsage(Base):
     coupon_id = Column(Integer, ForeignKey("coupons.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, nullable=False)
     order_id = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=_utcnow)
 
     coupon = relationship("Coupon", back_populates="usages")
 
@@ -391,6 +396,6 @@ class AuditLog(Base):
     action = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
     ip_address = Column(String(50), nullable=True)
-    timestamp = Column(DateTime, default=datetime.now(timezone.utc))
+    timestamp = Column(DateTime, default=_utcnow)
 
     user = relationship("User", back_populates="audit_logs")

@@ -11,6 +11,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from config import is_production
 from database import get_db
 from dependencies import get_current_user, require_admin
 from models import Order, Payment, Refund, ProcessedWebhookEvent, User
@@ -27,18 +28,26 @@ def _is_placeholder(val: str) -> bool:
     return not val or val.startswith("rzp_test_...") or val == "your_secret_..."
 
 
-def _get_razorpay_client():
-    key_id = os.getenv("RAZORPAY_KEY_ID", "")
-    key_secret = os.getenv("RAZORPAY_KEY_SECRET", "")
+def _razorpay_keys_configured() -> bool:
+    return not (
+        _is_placeholder(os.getenv("RAZORPAY_KEY_ID", ""))
+        or _is_placeholder(os.getenv("RAZORPAY_KEY_SECRET", ""))
+    )
 
-    if _is_placeholder(key_id) or _is_placeholder(key_secret):
+
+def _get_razorpay_client():
+    if not _razorpay_keys_configured():
         return None  # Use mock mode
 
-    try:
-        import razorpay
-        return razorpay.Client(auth=(key_id, key_secret))
-    except Exception:
-        return None
+    # Deliberately not wrapped: with real keys set, an SDK failure must surface
+    # instead of silently degrading to mock orders.
+    import razorpay
+    return razorpay.Client(auth=(os.getenv("RAZORPAY_KEY_ID"), os.getenv("RAZORPAY_KEY_SECRET")))
+
+
+def _mock_payments_enabled() -> bool:
+    """The mock signature is public in this repo, so honour it only without real keys outside production."""
+    return not is_production() and not _razorpay_keys_configured()
 
 
 def _build_mock_order(amount_paise: int, order_id: int) -> dict:
@@ -131,7 +140,7 @@ def verify_payment(
         raise HTTPException(status_code=404, detail="Payment not found")
 
     # Mock mode check
-    if data.razorpay_signature == MOCK_SIGNATURE:
+    if data.razorpay_signature == MOCK_SIGNATURE and _mock_payments_enabled():
         _mark_payment_paid(db, payment, data.razorpay_payment_id, data.razorpay_order_id)
         db.commit()
         return {"verified": True, "message": "Payment verified (mock mode)"}
@@ -161,8 +170,7 @@ async def payment_webhook(request: Request, db: Session = Depends(get_db)):
     signature = request.headers.get("x-razorpay-signature", "")
     webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
 
-    environment = os.getenv("APP_ENV", os.getenv("NODE_ENV", "development")).lower()
-    if not webhook_secret and environment == "production":
+    if not webhook_secret and is_production():
         raise HTTPException(status_code=503, detail="Payment webhook is not configured")
     if webhook_secret:
         if not signature:
@@ -263,11 +271,12 @@ def process_refund(
     order.refund_status = "completed" if is_full_refund else "partial"
     order.payment_status = "refunded" if is_full_refund else "partially_refunded"
 
-    # Restore stock
-    from sqlalchemy.orm import joinedload as jl
-    order_with_items = db.query(Order).options(jl(Order.items)).filter(Order.id == order.id).first()
-    if order_with_items and not order_with_items.stock_restored:
-        restore_order_stock(db, order_with_items, "refund", f"admin_{user.id}")
+    # Restore stock only once the order is fully refunded; a partial refund keeps the goods with the customer
+    if is_full_refund:
+        from sqlalchemy.orm import joinedload as jl
+        order_with_items = db.query(Order).options(jl(Order.items)).filter(Order.id == order.id).first()
+        if order_with_items and not order_with_items.stock_restored:
+            restore_order_stock(db, order_with_items, "refund", f"admin_{user.id}")
 
     db.commit()
 

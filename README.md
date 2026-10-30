@@ -250,10 +250,12 @@ python make_admin.py <your-email@example.com>
 | Variable | Description | Example |
 |---|---|---|
 | `PORT` | Server port | `8000` |
-| `NODE_ENV` | Environment mode | `development` |
+| `NODE_ENV` / `APP_ENV` | Environment mode (`APP_ENV` wins). `production` disables mock payments, the SQLite fallback and error details in 500 responses | `development` |
 | `DATABASE_URL` | MySQL connection string | `mysql+pymysql://root:root@db:3306/ecommerce` |
 | `FRONTEND_URL` | Allowed CORS origin | `http://localhost:3000` |
 | `CLERK_SECRET_KEY` | Clerk backend secret key | `sk_test_...` |
+| `CLERK_PUBLISHABLE_KEY` | Clerk publishable key; the JWKS URL is derived from it | `pk_test_...` |
+| `CLERK_JWKS_URL` | Optional override for the Clerk JWKS endpoint | `https://<instance>.clerk.accounts.dev/.well-known/jwks.json` |
 | `TAX_RATE` | Tax rate (decimal) | `0.08` |
 | `FREE_SHIPPING_THRESHOLD` | Free shipping above this amount | `100` |
 | `FLAT_SHIPPING_FEE` | Shipping fee when below threshold | `10` |
@@ -346,7 +348,21 @@ Veloce integrates with **[Razorpay](https://razorpay.com/)** for INR (₹) payme
 4. **Webhook Fallback** → Razorpay sends webhook events to `/payments/webhook` for server-to-server confirmation
 5. **Idempotency** → The `ProcessedWebhookEvent` model prevents duplicate webhook processing
 
-**Mock Mode**: In development, if Razorpay keys are placeholder values, the FastAPI server automatically falls back to mock payment responses and validates mock signatures for local testing.
+**Mock Mode**: In development, if Razorpay keys are placeholder values, the FastAPI server automatically falls back to mock payment responses and validates mock signatures for local testing. The mock signature is rejected as soon as real Razorpay keys are configured or the app runs in production.
+
+---
+
+## 🧪 Testing
+
+The backend test suite runs the real FastAPI app against a throwaway SQLite database, with Clerk authentication stubbed out, so it needs neither Docker nor network access:
+
+```bash
+cd backend-fastapi
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+It covers pricing, checkout stock handling and idempotency, order cancellation, payment signature verification and refunds. CI runs it on every push, alongside the frontend lint and production build.
 
 ---
 
