@@ -7,7 +7,7 @@ import random
 import string
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header
 from sqlalchemy.orm import Session, joinedload, selectinload
 from database import get_db
 from dependencies import get_current_user
@@ -19,6 +19,7 @@ from schemas import OrderCreate, OrderOut, MessageResponse
 from services.inventory import decrement_variant_stock, restore_order_stock
 from services.pricing import calculate_item_price, calculate_order_totals
 from services.order_state import can_restore_stock
+from services.order_notifications import notify_order_confirmed
 from typing import List, Optional
 
 router = APIRouter(prefix="/api/orders", tags=["Orders"])
@@ -35,6 +36,7 @@ def _generate_order_number() -> str:
 @router.post("", response_model=OrderOut, status_code=201)
 def create_order(
     data: OrderCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
@@ -220,6 +222,9 @@ def create_order(
 
         db.commit()
         db.refresh(order)
+        # Card orders are confirmed once payment succeeds (see payments._mark_payment_paid)
+        if data.payment_method == "cod":
+            background_tasks.add_task(notify_order_confirmed, order.id)
         return order
 
     except ValueError as e:
