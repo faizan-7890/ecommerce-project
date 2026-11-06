@@ -50,6 +50,7 @@ This project was built as part of the **BITS Pilani** coursework, demonstrating 
 - **Shopping Cart** — Persistent server-side cart with animated mini-cart slide-out panel
 - **Wishlist** — Save products for later with one-click add-to-cart
 - **Order Management** — Full order history with real-time status tracking (pending → processing → shipped → delivered)
+- **Order Emails** — Confirmation (at checkout for COD, after payment for cards), shipped (with tracking number) and refund emails over SMTP
 - **Reviews & Ratings** — 1–5 star reviews tied to purchased order items
 - **Coupon System** — Percentage or fixed-amount discount codes with usage limits and expiration dates
 - **User Profile** — Manage multiple shipping/billing addresses
@@ -262,6 +263,11 @@ python make_admin.py <your-email@example.com>
 | `RAZORPAY_KEY_ID` | Razorpay API key | `rzp_test_...` |
 | `RAZORPAY_KEY_SECRET` | Razorpay API secret | `your_secret` |
 | `RAZORPAY_WEBHOOK_SECRET` | Webhook signature verification | `your_webhook_secret` |
+| `SMTP_HOST` | SMTP server for order emails; leave empty to log emails instead of sending | `smtp.gmail.com` |
+| `SMTP_PORT` | `465` = implicit TLS, anything else = STARTTLS | `587` |
+| `SMTP_USER` / `SMTP_PASSWORD` | SMTP login (for Gmail, an app password) | `orders@yourdomain.com` |
+| `SMTP_FROM` | Sender shown to customers; defaults to `SMTP_USER` | `Veloce <orders@yourdomain.com>` |
+| `SMTP_STARTTLS` | Set to `false` for local mail catchers such as Mailpit | `true` |
 
 ### Frontend (`frontend/.env.local`)
 
@@ -362,7 +368,14 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-It covers pricing, checkout stock handling and idempotency, order cancellation, payment signature verification and refunds. CI runs it on every push, alongside the frontend lint and production build.
+It covers pricing, checkout stock handling and idempotency, order cancellation, payment signature verification, refunds and order emails. CI runs it on every push, alongside the frontend lint, unit tests and production build.
+
+The frontend unit tests use Vitest:
+
+```bash
+cd frontend
+npm test
+```
 
 ---
 
