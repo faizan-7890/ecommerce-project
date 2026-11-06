@@ -4,7 +4,7 @@ Admin router — analytics dashboard, order management.
 from typing import List, Optional
 from decimal import Decimal
 from datetime import date, datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func
 from database import get_db
@@ -15,6 +15,7 @@ from models import (
 )
 from schemas import OrderOut, OrderStatusUpdate, MessageResponse
 from services.inventory import restore_order_stock
+from services.order_notifications import notify_order_shipped
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -215,6 +216,7 @@ def list_all_orders(
 def update_order_status(
     order_id: int,
     data: OrderStatusUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(require_admin),
 ):
@@ -222,6 +224,8 @@ def update_order_status(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    # Either dropdown in the admin panel can mark an order shipped; email only on the first one
+    was_shipped = "shipped" in (order.order_status, order.shipment_status)
     update_data = data.model_dump(exclude_unset=True)
 
     # Handle cancellation with stock restore
@@ -233,6 +237,9 @@ def update_order_status(
 
     db.commit()
     db.refresh(order)
+
+    if not was_shipped and "shipped" in (order.order_status, order.shipment_status):
+        background_tasks.add_task(notify_order_shipped, order.id)
 
     return {"message": "Order status updated", "orderId": order.id}
 

@@ -8,7 +8,7 @@ import random
 import string
 from decimal import Decimal
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from config import is_production
@@ -18,6 +18,7 @@ from models import Order, Payment, Refund, ProcessedWebhookEvent, User
 from schemas import PaymentCreateOrder, PaymentVerify, AdminRefundCreate, MessageResponse
 from services.inventory import restore_order_stock
 from services.order_state import PAID_ORDER_STATUS
+from services.order_notifications import notify_order_confirmed, notify_order_refunded
 
 router = APIRouter(prefix="/api/payments", tags=["Payments"])
 
@@ -60,9 +61,10 @@ def _build_mock_order(amount_paise: int, order_id: int) -> dict:
     }
 
 
-def _mark_payment_paid(db: Session, payment: Payment, razorpay_payment_id: str, razorpay_order_id: str):
+def _mark_payment_paid(db: Session, payment: Payment, razorpay_payment_id: str, razorpay_order_id: str) -> bool:
+    """Mark the payment and its order paid. Returns False if it was already paid."""
     if payment.status == "paid":
-        return
+        return False
 
     payment.status = "paid"
     payment.razorpay_payment_id = razorpay_payment_id
@@ -74,6 +76,7 @@ def _mark_payment_paid(db: Session, payment: Payment, razorpay_payment_id: str, 
         order.payment_status = "paid"
         order.order_status = PAID_ORDER_STATUS
         order.expires_at = None
+    return True
 
 
 # ─── Create Razorpay Order ───────────────────────────────────────────────────
@@ -124,6 +127,7 @@ def create_payment_order(
 @router.post("/verify")
 def verify_payment(
     data: PaymentVerify,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -141,7 +145,8 @@ def verify_payment(
 
     # Mock mode check
     if data.razorpay_signature == MOCK_SIGNATURE and _mock_payments_enabled():
-        _mark_payment_paid(db, payment, data.razorpay_payment_id, data.razorpay_order_id)
+        if _mark_payment_paid(db, payment, data.razorpay_payment_id, data.razorpay_order_id):
+            background_tasks.add_task(notify_order_confirmed, payment.order_id)
         db.commit()
         return {"verified": True, "message": "Payment verified (mock mode)"}
 
@@ -157,7 +162,8 @@ def verify_payment(
     if not hmac.compare_digest(expected, data.razorpay_signature):
         raise HTTPException(status_code=400, detail="Payment verification failed")
 
-    _mark_payment_paid(db, payment, data.razorpay_payment_id, data.razorpay_order_id)
+    if _mark_payment_paid(db, payment, data.razorpay_payment_id, data.razorpay_order_id):
+        background_tasks.add_task(notify_order_confirmed, payment.order_id)
     db.commit()
 
     return {"verified": True, "message": "Payment verified successfully"}
@@ -165,7 +171,7 @@ def verify_payment(
 
 # ─── Webhook ─────────────────────────────────────────────────────────────────
 @router.post("/webhook")
-async def payment_webhook(request: Request, db: Session = Depends(get_db)):
+async def payment_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     body = await request.body()
     signature = request.headers.get("x-razorpay-signature", "")
     webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
@@ -210,8 +216,8 @@ async def payment_webhook(request: Request, db: Session = Depends(get_db)):
         rzp_payment_id = entity.get("id")
 
         payment = db.query(Payment).filter(Payment.razorpay_order_id == rzp_order_id).first()
-        if payment:
-            _mark_payment_paid(db, payment, rzp_payment_id, rzp_order_id)
+        if payment and _mark_payment_paid(db, payment, rzp_payment_id, rzp_order_id):
+            background_tasks.add_task(notify_order_confirmed, payment.order_id)
 
     db.commit()
     return {"status": "ok"}
@@ -221,6 +227,7 @@ async def payment_webhook(request: Request, db: Session = Depends(get_db)):
 @router.post("/refund", status_code=201)
 def process_refund(
     data: AdminRefundCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(require_admin),
 ):
@@ -279,6 +286,7 @@ def process_refund(
             restore_order_stock(db, order_with_items, "refund", f"admin_{user.id}")
 
     db.commit()
+    background_tasks.add_task(notify_order_refunded, order.id, refund_amount, is_full_refund)
 
     return {
         "message": "Refund processed successfully",
